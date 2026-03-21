@@ -1,16 +1,16 @@
 // ==UserScript==
 // @name         Scripts Empresa (Unificado)
 // @namespace    empresa
-// @version      4.3
+// @version      4.5
 // @description  Automações Trello
 // @match        https://trello.com/b/*
 // @grant        GM_xmlhttpRequest
-// @updateURL    https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/main/tampermonkey/script.js
-// @downloadURL  https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/main/tampermonkey/script.js
+// @updateURL    https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/refs/heads/main/tampermonkey/script.js
+// @downloadURL  https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/refs/heads/main/tampermonkey/script.js
 // ==/UserScript==
 
 (function () {
-    'use strict'; 
+    'use strict';
 
     // =========================
     // CONFIG GLOBAL (SEGURA)
