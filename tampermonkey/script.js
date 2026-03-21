@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Scripts Empresa (Unificado)
 // @namespace    empresa
-// @version      4.2          // ← toda atualização, sobe esse número
+// @version      4.2
 // @match        https://trello.com/b/*
 // @grant        GM_xmlhttpRequest
 // @updateURL    https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/refs/heads/main/tampermonkey/script.js
