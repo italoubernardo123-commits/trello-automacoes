@@ -1,237 +1,141 @@
 // ==UserScript==
-// @name         Script Empresa (Base)
+// @name         Scripts Empresa (Unificado)
 // @namespace    empresa
-// @version      1.0
+// @version      4.2          // ← toda atualização, sobe esse número
 // @match        https://trello.com/b/*
 // @grant        GM_xmlhttpRequest
+// @updateURL    https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/refs/heads/main/tampermonkey/script.js
+// @downloadURL  https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/refs/heads/main/tampermonkey/script.js
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
-    criarBotaoFlutuante();
+    // =========================
+    // CONFIG GLOBAL (SEGURA)
+    // =========================
 
-    const API_KEY = localStorage.getItem("trello_key");
-const API_TOKEN = localStorage.getItem("trello_token");
+    let API_KEY = localStorage.getItem("trello_key");
+    let API_TOKEN = localStorage.getItem("trello_token");
 
-if (!API_KEY || !API_TOKEN) {
-    const key = prompt("Digite sua API KEY do Trello:");
-    const token = prompt("Digite seu TOKEN do Trello:");
+    if (!API_KEY || !API_TOKEN) {
+        const key = prompt("Digite sua API KEY do Trello:");
+        const token = prompt("Digite seu TOKEN do Trello:");
 
-    if (!key || !token) {
-        alert("❌ API KEY e TOKEN são obrigatórios.");
-        return;
+        if (!key || !token) {
+            alert("❌ API KEY e TOKEN são obrigatórios.");
+            return;
+        }
+
+        localStorage.setItem("trello_key", key);
+        localStorage.setItem("trello_token", token);
+        API_KEY = key;
+        API_TOKEN = token;
+
+        alert("✅ Credenciais salvas! Recarregue a página.");
+        location.reload();
     }
 
-    localStorage.setItem("trello_key", key);
-    localStorage.setItem("trello_token", token);
-
-    alert("✅ Salvo! Recarregue a página.");
-    location.reload();
-}
+    // =========================
+    // REGEX
+    // =========================
 
     const ML_REGEX = /https?:\/\/[^\s"']*mercadolivre[^\s"']*/gi;
+    const LINK_REGEX = /https?:\/\/\S+/gi;
+
+    // Limite de cards por lista para alerta
+    const LIMITE_CARDS_LISTA = 60;
 
     // =========================
-    // MENU UI
+    // CONFIG LISTAS — SHOPEE
     // =========================
 
-    function criarBotaoFlutuante() {
-    if (document.getElementById("btn-empresa")) return;
-
-    const btn = document.createElement("button");
-    btn.id = "btn-empresa";
-    btn.innerText = "⚙️";
-    
-    Object.assign(btn.style, {
-        position: "fixed",
-        bottom: "20px",
-        right: "20px",
-        zIndex: 999999,
-        padding: "12px",
-        borderRadius: "50%",
-        background: "#111",
-        color: "#fff",
-        fontSize: "18px",
-        cursor: "pointer"
-    });
-
-    btn.onclick = abrirMenu;
-    document.body.appendChild(btn);
-}
-
-    function toggleMenu() {
-
-        let menu = document.getElementById("menu-empresa");
-
-        if (menu) {
-            menu.remove();
-            return;
-        }
-
-        menu = document.createElement("div");
-        menu.id = "menu-empresa";
-
-        menu.style.position = "fixed";
-        menu.style.bottom = "70px";
-        menu.style.right = "20px";
-        menu.style.background = "#111";
-        menu.style.padding = "15px";
-        menu.style.borderRadius = "10px";
-        menu.style.zIndex = "999999";
-        menu.style.color = "#fff";
-
-        menu.innerHTML = `
-            <button id="btn-ml">🔗 Abrir Chats ML</button>
-        `;
-
-        document.body.appendChild(menu);
-
-        document.getElementById("btn-ml").onclick = start;
-    }
-
-    // =========================
-    // SUA LÓGICA ORIGINAL (INTACTA)
-    // =========================
-
-    async function start() {
-        const listName = prompt("Nome exato da lista:", "INICIAL");
-        if (!listName) return;
-
-        const startAfter = prompt(
-            "Cole o ID do card (ex: ijZucRDK) ou deixe vazio para começar do topo:"
-        )?.trim();
-
-        const limit = parseInt(prompt("Quantos links deseja abrir?"), 10);
-        if (!limit || limit <= 0) return;
-
-        const boardId = window.location.pathname.split("/")[2];
-
-        const lists = await api(`/boards/${boardId}/lists`);
-        const list = lists.find(
-            l => l.name.trim().toUpperCase() === listName.trim().toUpperCase()
-        );
-
-        if (!list) {
-            alert("❌ Lista não encontrada.");
-            return;
-        }
-
-        const cards = await api(`/lists/${list.id}/cards`);
-        if (!cards.length) {
-            alert("❌ Nenhum card na lista.");
-            return;
-        }
-
-        let opened = 0;
-        let canStart = !startAfter;
-
-        for (const card of cards) {
-
-            if (!canStart) {
-                if (card.shortLink === startAfter) {
-                    canStart = true;
-                }
-                continue;
-            }
-
-            if (opened >= limit) break;
-            if (!card.desc) continue;
-
-            const links = card.desc.match(ML_REGEX) || [];
-            for (const link of links) {
-                if (opened >= limit) break;
-                window.open(link, "_blank");
-                opened++;
-            }
-        }
-
-        alert(`✅ Finalizado — ${opened} links abertos`);
-    }
-
-    function api(path) {
-        return new Promise((resolve, reject) => {
-            GM_xmlhttpRequest({
-                method: "GET",
-                url: `https://api.trello.com/1${path}?key=${API_KEY}&token=${API_TOKEN}`,
-                onload: res => resolve(JSON.parse(res.responseText)),
-                onerror: reject
-            });
-        });
-
-    }
-
-
-function executarMetricasShopee() {
-
-    /************ CONFIG ************/
-
-
-    const LISTAS = {
-        SEM_INFO: ["INICIAL 🟢","FALTA INFORMAÇÕES"],
+    const LISTAS_SHOPEE = {
+        SEM_INFO: ["INICIAL 🟢", "FALTA INFORMAÇÕES"],
         DESENVOLVIMENTO: [
-            "AÇÕES","DESENVOLVIMENTO  🔶","Desenvolvimento 1",
-            "Desenvolvimento 2","Desenvolvimento 3","Desenvolvimento 4","Desenvolvimento 5","Desenvolvimento 6","Desenvolvimento 7","Desenvolvimento 8","Desenvolvimento 9","Desenvolvimento 10","Desenvolvimento 11","Desenvolvimento 12","Desenvolvimento 13","Desenvolvimento 14","Desenvolvimento 15"
+            "AÇÕES", "DESENVOLVIMENTO  🔶",
+            ...Array.from({ length: 15 }, (_, i) => `Desenvolvimento ${i + 1}`)
         ],
         AGUARDANDO: [
             "AGUARDANDO APROVAÇÃO ⚫",
             "AGUARDANDO APROVAÇÃO DA ALTERAÇÃO ⚫"
         ],
-        ALTERACAO: [
-            "ALTERAÇÃO 2","ALTERAÇÃO  VITOR","ALTERAÇÕES 1","CORREÇÃO"
-        ]
+        ALTERACAO: ["ALTERAÇÃO 2", "ALTERAÇÃO  VITOR", "ALTERAÇÕES 1", "CORREÇÃO"]
     };
-    /********************************/
 
-    const DIAS_SEMANA = ["DOMINGO","SEGUNDA","TERÇA","QUARTA","QUINTA","SEXTA","SÁBADO"];
+    // =========================
+    // CONFIG LISTAS — ML
+    // =========================
 
-    function request(url) {
-        return new Promise(resolve => {
+    const LISTAS_ML = {
+        SEM_INFO: ["PROBLEMAS/RECLAMAÇÕES", "FALTA INFORMAÇÕES", "INICIAL"],
+        DESENVOLVIMENTO: [
+            "AÇÕES", "EM DESENVOLVIMENTO", "DESENVOLVIMENTO MAÍSA",
+            "DESENVOLVIMENTO FELIPE", "DESENVOLVIMENTO LARIANY",
+            "DESENVOLVIMENTO TATI", "DESENVOLVIMENTO SIANNE", "DESENVOLVIMENTO RODRIGO"
+        ],
+        AGUARDANDO: ["AGUARDANDO APROVAÇÃO", "AGUARDANDO APROVAÇÃO DA ALTERAÇÃO"],
+        ALTERACAO: ["ALTERAÇÕES", "ALTERAÇÕES 4", "ALTERAÇÃO VITOR", "ALTERAÇÕES 5", "CORREÇÃO"]
+    };
+
+    const DIAS_SEMANA = ["DOMINGO", "SEGUNDA", "TERÇA", "QUARTA", "QUINTA", "SEXTA", "SÁBADO"];
+
+    // =========================
+    // API
+    // =========================
+
+    function api(path) {
+        return new Promise((resolve, reject) => {
+            const sep = path.includes("?") ? "&" : "?";
             GM_xmlhttpRequest({
                 method: "GET",
-                url,
-                onload: r => resolve(JSON.parse(r.responseText))
+                url: `https://api.trello.com/1${path}${sep}key=${API_KEY}&token=${API_TOKEN}`,
+                onload: res => {
+                    try { resolve(JSON.parse(res.responseText)); }
+                    catch (e) { reject(e); }
+                },
+                onerror: reject
             });
         });
     }
 
+    // =========================
+    // HELPERS DE DATA
+    // =========================
+
     function dataLocalISO(dateUTC) {
         const d = new Date(dateUTC);
-        return new Date(d.getFullYear(), d.getMonth(), d.getDate())
-            .toISOString().slice(0,10);
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10);
     }
 
     function formatarDataBR(iso) {
-        const [a,m,d] = iso.split("-");
+        const [, m, d] = iso.split("-");
         return `${d}/${m}`;
     }
 
-    function gerarDias() {
+    function gerarDias(qtd = 7) {
         const hoje = new Date();
-        hoje.setHours(0,0,0,0);
-
-        return [...Array(7)].map((_,i)=>{
+        hoje.setHours(0, 0, 0, 0);
+        return [...Array(qtd)].map((_, i) => {
             const d = new Date(hoje);
-            d.setDate(hoje.getDate()+i);
-            return {
-                dataISO: d.toISOString().slice(0,10),
-                nome: DIAS_SEMANA[d.getDay()],
-                index: i
-            };
+            d.setDate(hoje.getDate() + i);
+            return { dataISO: d.toISOString().slice(0, 10), nome: DIAS_SEMANA[d.getDay()], index: i };
         });
     }
+
+    // =========================
+    // CORES POR DIA
+    // =========================
 
     function classePorDia(index, total) {
         if (index === 0) return total === 0 ? "dia-preto" : "dia-vermelho";
         if (index === 1) return total === 0 ? "dia-verde" : "dia-vermelho";
-
         if (index === 2) {
             if (total === 0) return "dia-verde";
             if (total < 30) return "dia-amarelo";
             if (total < 100) return "dia-laranja";
             return "dia-vermelho";
         }
-
         if (total >= 100) return "dia-vermelho";
         if (total >= 30) return "dia-laranja";
         if (total >= 5) return "dia-amarelo";
@@ -239,133 +143,742 @@ function executarMetricasShopee() {
         return "dia-verde";
     }
 
-    async function gerarMetricas() {
+    // =========================
+    // CSS COMPARTILHADO DAS MÉTRICAS
+    // =========================
+
+    const CSS_METRICAS = `
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #0f0f0f; color: #fff; font-family: 'IBM Plex Mono', monospace; padding: 30px; }
+        h1 { font-size: 1.5rem; margin-bottom: 4px; letter-spacing: 2px; }
+        .gerado-em { color: #555; font-size: 0.75rem; margin-bottom: 16px; }
+        .toolbar { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; align-items: center; }
+        .toolbar button {
+            padding: 7px 14px; border: none; border-radius: 6px;
+            font-weight: bold; cursor: pointer; font-size: 13px;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+        .btn-atualizar { background: #1565c0; color: #fff; }
+        .btn-atualizar:hover { background: #1976d2; }
+        .btn-csv { background: #2e7d32; color: #fff; }
+        .btn-csv:hover { background: #388e3c; }
+        .btn-periodo { background: #333; color: #fff; border: 1px solid #555; }
+        .btn-periodo:hover { background: #444; }
+        .btn-periodo.ativo { background: #555; border-color: #aaa; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        th, td { border: 1px solid #333; padding: 10px 14px; text-align: center; }
+        th { background: #1c1c1c; color: #aaa; letter-spacing: 1px; font-size: 0.78rem; }
+        .col-dia { text-align: left; font-weight: bold; }
+        .dia-preto      { background: #111; color: #555; }
+        .dia-verde      { background: #90ee30; color: #000; }
+        .dia-amarelinho { background: #ffde21; color: #000; }
+        .dia-amarelo    { background: #f9a825; color: #000; }
+        .dia-laranja    { background: #ef6c00; color: #fff; }
+        .dia-vermelho   { background: #c62828; color: #fff; }
+        .total { background: #1b5e20; font-weight: bold; }
+        .total:hover { background: #2e7d32; }
+        .separador td { background: #181818; color: #555; font-size: 0.72rem; letter-spacing: 1px; text-align: left; border-color: #222; }
+        .legenda { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+        .leg-item { padding: 3px 10px; border-radius: 4px; font-size: 0.72rem; color: #fff; }
+        .leg-item.dia-amarelinho, .leg-item.dia-amarelo { color: #000; }
+    `;
+
+    // =========================
+    // BUSCAR DADOS PARA MÉTRICAS
+    // =========================
+
+    async function buscarTabelaMetricas(listas) {
         const boardId = location.pathname.split("/")[2];
-        const lists = await request(`https://api.trello.com/1/boards/${boardId}/lists?key=${API_KEY}&token=${API_TOKEN}`);
-        const cards = await request(`https://api.trello.com/1/boards/${boardId}/cards?key=${API_KEY}&token=${API_TOKEN}`);
+        const [lists, cards] = await Promise.all([
+            api(`/boards/${boardId}/lists`),
+            api(`/boards/${boardId}/cards`)
+        ]);
 
         const listMap = {};
-        lists.forEach(l => listMap[l.id] = l.name.toUpperCase());
+        lists.forEach(l => listMap[l.id] = l.name.trim().toUpperCase());
 
-        let tabela = {};
+        const listasNorm = {};
+        for (const [tipo, nomes] of Object.entries(listas)) {
+            listasNorm[tipo] = nomes.map(n => n.trim().toUpperCase());
+        }
+
+        const tabela = {};
         cards.forEach(c => {
             if (!c.due) return;
-
             const data = dataLocalISO(c.due);
-            const l = listMap[c.idList] || "";
+            const nomeLista = listMap[c.idList] || "";
 
             let tipo = null;
-            if (LISTAS.SEM_INFO.includes(l)) tipo="semInfo";
-            else if (LISTAS.DESENVOLVIMENTO.includes(l)) tipo="desenvolvimento";
-            else if (LISTAS.ALTERACAO.includes(l)) tipo="alteracao";
-            else if (LISTAS.AGUARDANDO.includes(l)) tipo="aguardando";
+            if (listasNorm.SEM_INFO.includes(nomeLista)) tipo = "semInfo";
+            else if (listasNorm.DESENVOLVIMENTO.includes(nomeLista)) tipo = "desenvolvimento";
+            else if (listasNorm.ALTERACAO.includes(nomeLista)) tipo = "alteracao";
+            else if (listasNorm.AGUARDANDO.includes(nomeLista)) tipo = "aguardando";
             else return;
 
-            tabela[data] ??= {semInfo:0,desenvolvimento:0,alteracao:0,aguardando:0};
+            tabela[data] ??= { semInfo: 0, desenvolvimento: 0, alteracao: 0, aguardando: 0 };
             tabela[data][tipo]++;
         });
 
-        abrirAba(tabela);
+        return tabela;
     }
 
-    function abrirAba(tabela) {
-        const dias = gerarDias();
-        const w = window.open("","_blank");
+    // =========================
+    // CONSTRUIR HTML DA TABELA
+    // =========================
 
-        let tg={t:0,s:0,d:0,a:0,g:0};
+    function construirTabelaHTML(tabela, qtdDias) {
+        const dias = gerarDias(qtdDias);
+        const tg = { t: 0, s: 0, d: 0, a: 0, g: 0 };
+        let linhas = "";
 
-        let html = `
-<html><head><style>
-body{background:#0f0f0f;color:#fff;font-family:Arial;padding:20px}
-table{width:100%;border-collapse:collapse}
-th,td{border:1px solid #444;padding:10px;text-align:center}
-th{background:#1c1c1c}
+        dias.forEach((d, idx) => {
+            if (qtdDias === 14 && idx === 7) {
+                linhas += `<tr class="separador"><td colspan="6">── PRÓXIMA SEMANA ──</td></tr>`;
+            }
 
-.col-dia{font-weight:bold}
+            const v = tabela[d.dataISO] || { semInfo: 0, desenvolvimento: 0, alteracao: 0, aguardando: 0 };
+            const total = v.semInfo + v.desenvolvimento + v.alteracao + v.aguardando;
+            const cls = classePorDia(d.index, total);
 
-.dia-preto{background:#000}
-.dia-verde{background:#90ee30;color:#000}
-.dia-amarelinho{background:#ffde21;color:#000}
-.dia-amarelo{background:#f9a825;color:#000}
-.dia-laranja{background:#ef6c00}
-.dia-vermelho{background:#c62828}
+            tg.t += total; tg.s += v.semInfo; tg.d += v.desenvolvimento;
+            tg.a += v.alteracao; tg.g += v.aguardando;
 
-.total{background:#1b5e20;font-weight:bold}
-.total:hover{background:#597d35;cursor:pointer;transition:0.25s}
-
-h1{color:#ff9800}
-</style></head><body>
-
-<h1>📊 MÉTRICAS SHOPEE</h1>
-
-<table>
-<tr>
-<th>DIA</th>
-<th>TOTAL</th>
-<th>SEM INFO</th>
-<th>EM DESENV.</th>
-<th>ALTERAÇÃO</th>
-<th>AGUARDANDO</th>
-</tr>`;
-
-        dias.forEach(d=>{
-            const v=tabela[d.dataISO]||{semInfo:0,desenvolvimento:0,alteracao:0,aguardando:0};
-            const total=v.semInfo+v.desenvolvimento+v.alteracao+v.aguardando;
-            const cls=classePorDia(d.index,total);
-
-            tg.t+=total; tg.s+=v.semInfo; tg.d+=v.desenvolvimento; tg.a+=v.alteracao; tg.g+=v.aguardando;
-
-            html+=`
-<tr class="${cls}">
-<td class="col-dia">${d.nome} ${formatarDataBR(d.dataISO)}</td>
-<td>${total}</td>
-<td>${v.semInfo}</td>
-<td>${v.desenvolvimento}</td>
-<td>${v.alteracao}</td>
-<td>${v.aguardando}</td>
+            const isHoje = d.index === 0 ? 'style="outline:2px solid #fff"' : "";
+            linhas += `
+<tr class="${cls}" ${isHoje}>
+    <td class="col-dia">${d.index === 0 ? "📌 " : ""}${d.nome} ${formatarDataBR(d.dataISO)}</td>
+    <td><strong>${total}</strong></td>
+    <td>${v.semInfo}</td><td>${v.desenvolvimento}</td>
+    <td>${v.alteracao}</td><td>${v.aguardando}</td>
 </tr>`;
         });
 
-        html+=`
-<tr class="total">
-<td>🧮 TOTAL GERAL</td>
-<td>${tg.t}</td>
-<td>${tg.s}</td>
-<td>${tg.d}</td>
-<td>${tg.a}</td>
-<td>${tg.g}</td>
-</tr>
-</table>
-</body></html>`;
+        return { linhas, tg };
+    }
 
+    // =========================
+    // GERAR CSV
+    // =========================
+
+    function gerarCSV(tabela, qtdDias) {
+        const dias = gerarDias(qtdDias);
+        const rows = [["Dia", "Data", "Total", "Sem Info", "Em Desenvolvimento", "Alteracao", "Aguardando"]];
+        dias.forEach(d => {
+            const v = tabela[d.dataISO] || { semInfo: 0, desenvolvimento: 0, alteracao: 0, aguardando: 0 };
+            const total = v.semInfo + v.desenvolvimento + v.alteracao + v.aguardando;
+            rows.push([d.nome, formatarDataBR(d.dataISO), total, v.semInfo, v.desenvolvimento, v.alteracao, v.aguardando]);
+        });
+        return "\uFEFF" + rows.map(r => r.join(";")).join("\n");
+    }
+
+    // =========================
+    // MONTAR HTML COMPLETO DA PÁGINA DE MÉTRICAS
+    // =========================
+
+    function montarPaginaMetricas(tabela, titulo, corTitulo, qtdDias) {
+        const { linhas, tg } = construirTabelaHTML(tabela, qtdDias);
+        const csvData = gerarCSV(tabela, qtdDias);
+        const geradoEm = new Date().toLocaleString("pt-BR");
+
+        return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>${titulo}</title>
+<style>${CSS_METRICAS}</style>
+</head>
+<body>
+<h1 style="color:${corTitulo}">📊 ${titulo}</h1>
+<p class="gerado-em" id="ts">Gerado em: ${geradoEm}</p>
+
+<div class="toolbar">
+    <button class="btn-atualizar" onclick="solicitar('atualizar')">🔄 Atualizar</button>
+    <button class="btn-csv" onclick="baixarCSV()">📥 Exportar CSV</button>
+    <button class="btn-periodo ${qtdDias === 14 ? "ativo" : ""}" onclick="solicitar('periodo')">
+        ${qtdDias === 7 ? "📅 Ver 14 dias" : "📅 Ver 7 dias"}
+    </button>
+    <span style="color:#555;font-size:0.72rem;margin-left:auto">Exibindo ${qtdDias} dias</span>
+</div>
+
+<div class="legenda">
+    <span class="leg-item dia-preto">⬛ Hoje zerado</span>
+    <span class="leg-item dia-verde">🟢 Zerado/OK</span>
+    <span class="leg-item dia-amarelinho">🟡 1–4</span>
+    <span class="leg-item dia-amarelo">🟠 5–29</span>
+    <span class="leg-item dia-laranja">🔶 30–99</span>
+    <span class="leg-item dia-vermelho">🔴 100+</span>
+</div>
+
+<table>
+<thead><tr>
+    <th>DIA</th><th>TOTAL</th><th>SEM INFO</th>
+    <th>EM DESENV.</th><th>ALTERAÇÃO</th><th>AGUARDANDO</th>
+</tr></thead>
+<tbody>
+${linhas}
+<tr class="total">
+    <td class="col-dia">🧮 TOTAL (${qtdDias} dias)</td>
+    <td>${tg.t}</td><td>${tg.s}</td><td>${tg.d}</td><td>${tg.a}</td><td>${tg.g}</td>
+</tr>
+</tbody>
+</table>
+
+<script>
+let _dias = ${qtdDias};
+const _csv = ${JSON.stringify(csvData)};
+
+function solicitar(acao) {
+    document.getElementById('ts').textContent = 'Atualizando...';
+    window.opener.postMessage({ tipo: 'metricas_action', acao, dias: acao === 'periodo' ? (_dias === 7 ? 14 : 7) : _dias }, '*');
+}
+
+function baixarCSV() {
+    const blob = new Blob([_csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '${titulo.replace(/\s+/g,"_")}_' + new Date().toLocaleDateString('pt-BR').replace(/\//g,'-') + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+window.addEventListener('message', e => {
+    if (e.data?.tipo === 'metricas_html') {
+        document.open(); document.write(e.data.html); document.close();
+    }
+});
+<\/script>
+</body></html>`;
+    }
+
+    // =========================
+    // ABRIR / ATUALIZAR JANELA DE MÉTRICAS
+    // =========================
+
+    function abrirJanelaMetricas(tabela, titulo, corTitulo, qtdDias, w = null) {
+        const html = montarPaginaMetricas(tabela, titulo, corTitulo, qtdDias);
+        const janela = w || window.open("", "_blank");
+        janela.document.open();
+        janela.document.write(html);
+        janela.document.close();
+
+        // Ouvir pedidos de atualizar / trocar período vindos da janela
+        const listas = titulo.includes("SHOPEE") ? LISTAS_SHOPEE : LISTAS_ML;
+
+        window.addEventListener("message", async function handler(e) {
+            if (e.source !== janela) return;
+            if (e.data?.tipo !== "metricas_action") return;
+
+            try {
+                const novaTabela = await buscarTabelaMetricas(listas);
+                const novaHtml = montarPaginaMetricas(novaTabela, titulo, corTitulo, e.data.dias);
+                janela.postMessage({ tipo: "metricas_html", html: novaHtml }, "*");
+            } catch {
+                janela.alert("❌ Erro ao atualizar. Verifique sua conexão.");
+            }
+        });
+
+        return janela;
+    }
+
+    // =========================
+    // MÉTRICAS SHOPEE
+    // =========================
+
+    async function metricasShopee() {
+        try {
+            const tabela = await buscarTabelaMetricas(LISTAS_SHOPEE);
+            abrirJanelaMetricas(tabela, "MÉTRICAS SHOPEE", "#ff9800", 7);
+        } catch {
+            alert("❌ Erro ao buscar dados. Verifique suas credenciais.");
+        }
+    }
+
+    // =========================
+    // MÉTRICAS ML
+    // =========================
+
+    async function metricasML() {
+        try {
+            const tabela = await buscarTabelaMetricas(LISTAS_ML);
+            abrirJanelaMetricas(tabela, "MÉTRICAS MERCADO LIVRE", "#ffde21", 7);
+        } catch {
+            alert("❌ Erro ao buscar dados. Verifique suas credenciais.");
+        }
+    }
+
+    // =========================
+    // AUDITORIA
+    // =========================
+
+    async function auditar(plataforma) {
+        const boardId = location.pathname.split("/")[2];
+        const w = window.open("", "_blank");
+        w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="background:#0f0f0f;color:#fff;font-family:monospace;padding:30px"><p>🔎 Analisando quadro...</p></body></html>`);
+
+        try {
+            const [cards, lists] = await Promise.all([
+                api(`/boards/${boardId}/cards?fields=name,desc,url,idList,due`),
+                api(`/boards/${boardId}/lists?fields=name`)
+            ]);
+
+            const listMap = {};
+            lists.forEach(l => listMap[l.id] = l.name);
+
+            const titleMap = {};
+            const linkMap = {};
+            const semLink = [];
+            const semData = [];
+
+            cards.forEach(card => {
+                // Títulos duplicados
+                const titulo = card.name.trim().toLowerCase();
+                titleMap[titulo] ??= [];
+                titleMap[titulo].push(card);
+
+                // Links
+                const links = (card.desc || "").match(LINK_REGEX) || [];
+                links.forEach(link => {
+                    linkMap[link] ??= [];
+                    linkMap[link].push(card);
+                });
+
+                if (links.length === 0) semLink.push(card);
+                if (!card.due) semData.push(card);
+            });
+
+            const titlesDup = Object.values(titleMap).filter(g => g.length > 1);
+            const linksDup = Object.entries(linkMap).filter(([, g]) => g.length > 1);
+
+            renderAuditoria(w, plataforma, titlesDup, linksDup, semLink, semData, listMap);
+
+        } catch (err) {
+            w.document.body.innerHTML = `<p style="color:#ef5350;font-family:monospace;padding:30px">❌ Erro ao buscar dados. Verifique suas credenciais.</p>`;
+            console.error(err);
+        }
+    }
+
+    function renderAuditoria(w, plataforma, titlesDup, linksDup, semLink, semData, listMap) {
+        const cor = plataforma === "Shopee" ? "#ff9800" : "#ffde21";
+        const geradoEm = new Date().toLocaleString("pt-BR");
+        const totalProblemas = titlesDup.length + linksDup.length + semLink.length + semData.length;
+
+        function secao(icone, titulo, itens, colunas, renderLinha) {
+            const badge = itens.length === 0
+                ? `<span class="badge ok">✅ Nenhum problema</span>`
+                : `<span class="badge erro">${itens.length} item(s)</span>`;
+
+            const corpo = itens.length === 0 ? "" : `
+<table>
+    <tr>${colunas.map(c => `<th>${c}</th>`).join("")}</tr>
+    ${itens.map(renderLinha).join("")}
+</table>`;
+
+            return `<div class="secao ${itens.length === 0 ? 'limpa' : ''}">
+    <h2>${icone} ${titulo} ${badge}</h2>${corpo}
+</div>`;
+        }
+
+        const s1 = secao("🔤", "Títulos duplicados", titlesDup, ["Título", "Lista", "Abrir"],
+            group => group.map(card => `<tr>
+                <td>${card.name}</td>
+                <td class="lista">${listMap[card.idList] || "—"}</td>
+                <td><a href="${card.url}" target="_blank">Abrir</a></td>
+            </tr>`).join(""));
+
+        const s2 = secao("🔗", "Links duplicados", linksDup, ["Link", "Card", "Lista"],
+            ([link, arr]) => arr.map(card => `<tr>
+                <td class="link-cell"><a href="${link}" target="_blank">${link.length > 70 ? link.slice(0, 67) + "..." : link}</a></td>
+                <td><a href="${card.url}" target="_blank">${card.name}</a></td>
+                <td class="lista">${listMap[card.idList] || "—"}</td>
+            </tr>`).join(""));
+
+        const s3 = secao("🚫", "Cards sem link", semLink, ["Card", "Lista", "Abrir"],
+            card => `<tr>
+                <td>${card.name}</td>
+                <td class="lista">${listMap[card.idList] || "—"}</td>
+                <td><a href="${card.url}" target="_blank">Abrir</a></td>
+            </tr>`);
+
+        const s4 = secao("📅", "Cards sem data de vencimento", semData, ["Card", "Lista", "Abrir"],
+            card => `<tr>
+                <td>${card.name}</td>
+                <td class="lista">${listMap[card.idList] || "—"}</td>
+                <td><a href="${card.url}" target="_blank">Abrir</a></td>
+            </tr>`);
+
+        const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Auditoria ${plataforma}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0f0f0f; color: #fff; font-family: 'IBM Plex Mono', monospace; padding: 30px; }
+h1 { color: ${cor}; font-size: 1.5rem; letter-spacing: 2px; margin-bottom: 4px; }
+.gerado-em { color: #555; font-size: 0.72rem; margin-bottom: 24px; }
+.resumo { display: flex; gap: 12px; margin-bottom: 32px; flex-wrap: wrap; }
+.resumo-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 12px 18px; min-width: 120px; }
+.resumo-card .num { font-size: 2rem; font-weight: bold; margin-top: 4px; }
+.resumo-card.problema .num { color: #ef5350; }
+.resumo-card.ok .num { color: #66bb6a; }
+.resumo-card .label { color: #666; font-size: 0.72rem; }
+.secao { margin-bottom: 36px; }
+.secao.limpa h2 { color: #444; }
+h2 { font-size: 0.95rem; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+.badge { font-size: 0.7rem; padding: 3px 8px; border-radius: 10px; }
+.badge.ok { background: #1b5e20; color: #a5d6a7; }
+.badge.erro { background: #b71c1c; color: #ffcdd2; }
+table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 8px; }
+th, td { border: 1px solid #222; padding: 9px 12px; text-align: left; }
+th { background: #1c1c1c; color: #777; font-size: 0.72rem; letter-spacing: 1px; }
+tr:hover td { background: #1a1a1a; }
+a { color: #64b5f6; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.lista { color: #666; font-size: 0.78rem; }
+.link-cell { max-width: 320px; word-break: break-all; }
+</style>
+</head>
+<body>
+<h1>🔎 Auditoria — ${plataforma}</h1>
+<p class="gerado-em">Gerado em: ${geradoEm}</p>
+
+<div class="resumo">
+    <div class="resumo-card ${totalProblemas === 0 ? 'ok' : 'problema'}">
+        <div class="label">Total de problemas</div>
+        <div class="num">${totalProblemas}</div>
+    </div>
+    <div class="resumo-card ${titlesDup.length === 0 ? 'ok' : 'problema'}">
+        <div class="label">Títulos duplic.</div>
+        <div class="num">${titlesDup.length}</div>
+    </div>
+    <div class="resumo-card ${linksDup.length === 0 ? 'ok' : 'problema'}">
+        <div class="label">Links duplic.</div>
+        <div class="num">${linksDup.length}</div>
+    </div>
+    <div class="resumo-card ${semLink.length === 0 ? 'ok' : 'problema'}">
+        <div class="label">Sem link</div>
+        <div class="num">${semLink.length}</div>
+    </div>
+    <div class="resumo-card ${semData.length === 0 ? 'ok' : 'problema'}">
+        <div class="label">Sem data</div>
+        <div class="num">${semData.length}</div>
+    </div>
+</div>
+
+${s1}${s2}${s3}${s4}
+
+</body>
+</html>`;
+
+        w.document.open();
         w.document.write(html);
         w.document.close();
     }
 
-    function addButton() {
-        if (document.getElementById("btn-metricas-shopee")) return;
+    // =========================
+    // ALERTA DE LISTAS LOTADAS
+    // =========================
 
-        const btn = document.createElement("button");
-        btn.id = "btn-metricas-shopee";
-        btn.textContent = "📊 MÉTRICAS SHOPEE";
-        Object.assign(btn.style,{
-            position:"fixed",
-            top:"3px",
-            left:"150px",
-            zIndex:999999,
-            padding:"10px 14px",
-            background:"#ff9800",
-            border:"none",
-            borderRadius:"6px",
-            fontWeight:"bold",
-            color:"#000",
-            cursor:"pointer"
-        });
+    async function alertaListasLotadas() {
+        const boardId = location.pathname.split("/")[2];
+        try {
+            const [lists, cards] = await Promise.all([
+                api(`/boards/${boardId}/lists`),
+                api(`/boards/${boardId}/cards?fields=idList`)
+            ]);
 
-        btn.onclick = gerarMetricas;
-        document.body.appendChild(btn);
+            const contagem = {};
+            cards.forEach(c => { contagem[c.idList] = (contagem[c.idList] || 0) + 1; });
+
+            const lotadas = lists
+                .filter(l => (contagem[l.id] || 0) >= LIMITE_CARDS_LISTA)
+                .map(l => ({ nome: l.name, qtd: contagem[l.id] }))
+                .sort((a, b) => b.qtd - a.qtd);
+
+            if (lotadas.length === 0) {
+                alert(`✅ Nenhuma lista com ${LIMITE_CARDS_LISTA}+ cards.`);
+                return;
+            }
+
+            const linhas = lotadas.map(l => `  ⚠️ ${l.nome}: ${l.qtd} cards`).join("\n");
+            alert(`🚨 ${lotadas.length} lista(s) com ${LIMITE_CARDS_LISTA}+ cards:\n\n${linhas}`);
+
+        } catch (err) {
+            alert("❌ Erro ao verificar listas.");
+            console.error(err);
+        }
     }
 
-    setInterval(addButton,1500);
-}
+    // Verificação silenciosa ao carregar — pisca o botão se tiver lista lotada
+    async function verificarAlertaAuto() {
+        try {
+            const boardId = location.pathname.split("/")[2];
+            const [lists, cards] = await Promise.all([
+                api(`/boards/${boardId}/lists`),
+                api(`/boards/${boardId}/cards?fields=idList`)
+            ]);
+
+            const contagem = {};
+            cards.forEach(c => { contagem[c.idList] = (contagem[c.idList] || 0) + 1; });
+
+            const temLotada = lists.some(l => (contagem[l.id] || 0) >= LIMITE_CARDS_LISTA);
+            if (!temLotada) return;
+
+            const btn = document.getElementById("btn-empresa");
+            if (!btn) return;
+
+            btn.style.background = "#b71c1c";
+            btn.style.borderColor = "#ef5350";
+            btn.title = `⚠️ Lista(s) com ${LIMITE_CARDS_LISTA}+ cards! Clique para ver.`;
+
+            let piscadas = 0;
+            const iv = setInterval(() => {
+                btn.style.opacity = btn.style.opacity === "0.3" ? "1" : "0.3";
+                if (++piscadas >= 6) { clearInterval(iv); btn.style.opacity = "1"; }
+            }, 400);
+
+        } catch { /* silencioso */ }
+    }
+
+    // =========================
+    // ABRIR CHATS ML
+    // =========================
+
+    async function abrirML() {
+        const listName = prompt("Nome da lista:", "INICIAL");
+        if (!listName) return;
+
+        const startAfter = prompt("ID do card para começar (opcional — deixe vazio para o início):")?.trim();
+        const limit = parseInt(prompt("Quantidade máxima de links para abrir:"), 10);
+        if (!limit || isNaN(limit)) return alert("❌ Número inválido.");
+
+        if (limit > 20 && !confirm(`Você vai abrir até ${limit} links de uma vez.\n\nContinuar?`)) return;
+
+        const boardId = location.pathname.split("/")[2];
+        try {
+            const lists = await api(`/boards/${boardId}/lists`);
+            const list = lists.find(l => l.name.trim().toUpperCase() === listName.trim().toUpperCase());
+            if (!list) return alert(`❌ Lista "${listName}" não encontrada.`);
+
+            const cards = await api(`/lists/${list.id}/cards`);
+            let opened = 0;
+            let canStart = !startAfter;
+
+            for (const card of cards) {
+                if (!canStart) {
+                    if (card.shortLink === startAfter) canStart = true;
+                    continue;
+                }
+                if (opened >= limit) break;
+                if (!card.desc) continue;
+                const links = card.desc.match(ML_REGEX) || [];
+                for (const link of links) {
+                    if (opened >= limit) break;
+                    window.open(link, "_blank");
+                    opened++;
+                }
+            }
+
+            alert(`✅ ${opened} link(s) aberto(s).`);
+        } catch (err) {
+            alert("❌ Erro ao buscar lista. Verifique suas credenciais.");
+            console.error(err);
+        }
+    }
+
+    // =========================
+    // ABRIR POR DATA
+    // =========================
+
+    async function abrirPorData() {
+        const inputDate = prompt("Data (DD/MM/AAAA):", new Date().toLocaleDateString("pt-BR"));
+        if (!inputDate) return;
+
+        const [d, m, y] = inputDate.split("/");
+        if (!d || !m || !y) return alert("❌ Formato inválido. Use DD/MM/AAAA.");
+
+        const target = new Date(y, m - 1, d);
+        const boardId = location.pathname.split("/")[2];
+
+        try {
+            const cards = await api(`/boards/${boardId}/cards`);
+            let opened = 0;
+
+            cards.forEach(card => {
+                if (!card.due || !card.desc) return;
+                const due = new Date(card.due);
+                const same =
+                    due.getFullYear() === target.getFullYear() &&
+                    due.getMonth() === target.getMonth() &&
+                    due.getDate() === target.getDate();
+                if (!same) return;
+                const links = card.desc.match(LINK_REGEX) || [];
+                links.forEach(l => { window.open(l, "_blank"); opened++; });
+            });
+
+            alert(`✅ ${opened} link(s) aberto(s) para ${inputDate}.`);
+        } catch (err) {
+            alert("❌ Erro ao buscar cards.");
+            console.error(err);
+        }
+    }
+
+    // =========================
+    // REDEFINIR CREDENCIAIS
+    // =========================
+
+    function limparCredenciais() {
+        if (!confirm("Deseja redefinir suas credenciais do Trello?")) return;
+        localStorage.removeItem("trello_key");
+        localStorage.removeItem("trello_token");
+        alert("✅ Credenciais removidas. Recarregando...");
+        location.reload();
+    }
+
+    // =========================
+    // BOTÃO FLUTUANTE
+    // =========================
+
+    function criarBotaoFlutuante() {
+        if (document.getElementById("btn-empresa")) return;
+
+        const btn = document.createElement("button");
+        btn.id = "btn-empresa";
+        btn.innerText = "⚙️";
+        btn.title = "Scripts Empresa";
+
+        Object.assign(btn.style, {
+            position: "fixed",
+            bottom: "20px",
+            right: "20px",
+            zIndex: "999999",
+            padding: "12px 14px",
+            borderRadius: "50%",
+            border: "2px solid #333",
+            background: "#111",
+            color: "#fff",
+            cursor: "pointer",
+            fontSize: "18px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+            transition: "transform 0.15s, background 0.2s, border-color 0.2s"
+        });
+
+        btn.onmouseenter = () => btn.style.transform = "scale(1.1)";
+        btn.onmouseleave = () => btn.style.transform = "scale(1)";
+        btn.onclick = toggleMenu;
+        document.body.appendChild(btn);
+
+        verificarAlertaAuto();
+    }
+
+    // =========================
+    // MENU
+    // =========================
+
+    function toggleMenu() {
+        let menu = document.getElementById("menu-empresa");
+        if (menu) { menu.remove(); return; }
+
+        menu = document.createElement("div");
+        menu.id = "menu-empresa";
+
+        Object.assign(menu.style, {
+            position: "fixed",
+            bottom: "72px",
+            right: "20px",
+            background: "#111",
+            border: "1px solid #333",
+            padding: "12px",
+            borderRadius: "12px",
+            zIndex: "999999",
+            color: "#fff",
+            display: "flex",
+            flexDirection: "column",
+            gap: "6px",
+            minWidth: "235px",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.6)"
+        });
+
+        function separador(label) {
+            const el = document.createElement("div");
+            el.innerText = label;
+            Object.assign(el.style, {
+                color: "#555", fontSize: "10px", letterSpacing: "1.5px",
+                padding: "8px 4px 2px", textTransform: "uppercase"
+            });
+            return el;
+        }
+
+        const grupos = [
+            {
+                label: "📨 Atendimento",
+                itens: [
+                    { id: "btn-open-ml",  label: "🔗 Abrir Chats ML", fn: abrirML },
+                    { id: "btn-open-due", label: "📅 Abrir por Data",  fn: abrirPorData },
+                ]
+            },
+            {
+                label: "📊 Métricas",
+                itens: [
+                    { id: "btn-metricas-shopee", label: "📊 Métricas Shopee",        fn: metricasShopee },
+                    { id: "btn-metricas-ml",     label: "📊 Métricas ML",            fn: metricasML },
+                ]
+            },
+            {
+                label: "🔎 Auditoria",
+                itens: [
+                    { id: "btn-aud-ml",     label: "🔎 Auditar board ML",     fn: () => auditar("ML") },
+                    { id: "btn-aud-shopee", label: "🔎 Auditar board Shopee",  fn: () => auditar("Shopee") },
+                    { id: "btn-listas",     label: "🚨 Listas lotadas",        fn: alertaListasLotadas },
+                ]
+            },
+            {
+                label: "⚙️ Config",
+                itens: [
+                    { id: "btn-creds", label: "🔑 Redefinir Credenciais", fn: limparCredenciais },
+                ]
+            }
+        ];
+
+        grupos.forEach(({ label, itens }) => {
+            menu.appendChild(separador(label));
+            itens.forEach(({ id, label, fn }) => {
+                const b = document.createElement("button");
+                b.id = id;
+                b.innerText = label;
+                Object.assign(b.style, {
+                    background: "#1e1e1e", color: "#fff",
+                    border: "1px solid #2a2a2a", borderRadius: "8px",
+                    padding: "9px 12px", cursor: "pointer",
+                    fontSize: "13px", textAlign: "left",
+                    transition: "background 0.15s"
+                });
+                b.onmouseenter = () => b.style.background = "#2a2a2a";
+                b.onmouseleave = () => b.style.background = "#1e1e1e";
+                b.onclick = () => { menu.remove(); fn(); };
+                menu.appendChild(b);
+            });
+        });
+
+        document.body.appendChild(menu);
+
+        setTimeout(() => {
+            document.addEventListener("click", function fechar(e) {
+                if (!menu.contains(e.target) && e.target.id !== "btn-empresa") {
+                    menu.remove();
+                    document.removeEventListener("click", fechar);
+                }
+            });
+        }, 50);
+    }
+
+    // =========================
+    // INIT
+    // =========================
+
+    criarBotaoFlutuante();
+
 })();
