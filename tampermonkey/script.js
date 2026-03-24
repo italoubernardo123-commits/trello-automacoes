@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Scripts Empresa (Unificado)
 // @namespace    empresa
-// @version      4.5
+// @version      4.6
 // @description  Automações Trello
 // @match        https://trello.com/b/*
 // @grant        GM_xmlhttpRequest
@@ -334,6 +334,20 @@ ${linhas}
     // AUDITORIA
     // =========================
 
+    // Detecta plataforma pelo nome do board e audita
+    async function auditarAtual() {
+        const boardId = location.pathname.split("/")[2];
+        try {
+            const board = await api(`/boards/${boardId}?fields=name`);
+            const nome = (board.name || "").toLowerCase();
+            let plataforma = "ML";
+            if (nome.includes("shopee")) plataforma = "Shopee";
+            auditar(plataforma);
+        } catch {
+            auditar("ML"); // fallback
+        }
+    }
+
     async function auditar(plataforma) {
         const boardId = location.pathname.split("/")[2];
         const w = window.open("", "_blank");
@@ -343,7 +357,7 @@ ${linhas}
 
         try {
             const [cards, lists] = await Promise.all([
-                api(`/boards/${boardId}/cards?fields=name,desc,url,idList,due`),
+                api(`/boards/${boardId}/cards?fields=name,desc,url,idList,due,labels`),
                 api(`/boards/${boardId}/lists?fields=name`)
             ]);
 
@@ -352,7 +366,14 @@ ${linhas}
 
             const titleMap = {}, linkMap = {}, semLink = [], semData = [];
 
-            cards.forEach(card => {
+            // Filtrar cards de controle (separadores/cabeçalhos de lista)
+            const CTRL_RE = /^(──|==|--|🟢|🔶|⚫|🔴|🟡|•{2}|_{2}|\*{2}|#{2})/;
+            const cardsReais = cards.filter(card => {
+                const n = card.name.trim();
+                return n.length > 0 && !CTRL_RE.test(n);
+            });
+
+            cardsReais.forEach(card => {
                 const titulo = card.name.trim().toLowerCase();
                 titleMap[titulo] ??= []; titleMap[titulo].push(card);
 
@@ -389,8 +410,21 @@ ${itens.map(renderLinha).join("")}</table>`;
             return `<div class="secao ${itens.length===0?"limpa":""}"><h2>${icone} ${titulo} ${badge}</h2>${corpo}</div>`;
         }
 
-        const s1 = secao("🔤","Títulos duplicados", titlesDup, ["Título","Lista","Abrir"],
-            g => g.map(c=>`<tr><td>${c.name}</td><td class="lista">${listMap[c.idList]||"—"}</td><td><a href="${c.url}" target="_blank">Abrir</a></td></tr>`).join(""));
+        const s1 = secao("🔤","Títulos duplicados", titlesDup, ["Título","Lista","Etiqueta","Abrir"],
+            g => g.map(c => {
+                const temMaisCompras = (c.labels || []).some(l =>
+                    (l.name || "").toLowerCase().includes("mais compras")
+                );
+                const badge = temMaisCompras
+                    ? `<span style="background:#e040fb;color:#fff;font-size:10px;padding:2px 7px;border-radius:10px;white-space:nowrap">🏷️ Mais compras</span>`
+                    : "—";
+                return `<tr>
+                    <td>${c.name}</td>
+                    <td class="lista">${listMap[c.idList]||"—"}</td>
+                    <td>${badge}</td>
+                    <td><a href="${c.url}" target="_blank">Abrir</a></td>
+                </tr>`;
+            }).join(""));
 
         const s2 = secao("🔗","Links duplicados", linksDup, ["Link","Card","Lista"],
             ([link,arr]) => arr.map(c=>`<tr>
@@ -602,12 +636,16 @@ ${s1}${s2}${s3}${s4}
 
     function criarBotaoFlutuante() {
         if (document.getElementById("btn-empresa")) return;
+
+        // Botão principal ⚙️ — circular
         const btn = document.createElement("button");
-        btn.id = "btn-empresa"; btn.innerText = "⚙️"; btn.title = "Scripts Empresa";
+        btn.id = "btn-empresa"; btn.innerText = "⚙️"; btn.title = "Scripts Empresa v4.2 — Automações Trello";
         Object.assign(btn.style, {
             position: "fixed", bottom: "20px", right: "20px", zIndex: "999999",
-            padding: "12px 14px", borderRadius: "50%", border: "2px solid #333",
-            background: "#111", color: "#fff", cursor: "pointer", fontSize: "18px",
+            width: "46px", height: "46px", borderRadius: "50%",
+            border: "2px solid #333", background: "#111", color: "#fff",
+            cursor: "pointer", fontSize: "18px", display: "flex",
+            alignItems: "center", justifyContent: "center", padding: "0",
             boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
             transition: "transform 0.15s, background 0.2s, border-color 0.2s"
         });
@@ -615,6 +653,7 @@ ${s1}${s2}${s3}${s4}
         btn.onmouseleave = () => btn.style.transform = "scale(1)";
         btn.onclick = toggleMenu;
         document.body.appendChild(btn);
+
         verificarAlertaAuto();
     }
 
@@ -636,6 +675,33 @@ ${s1}${s2}${s3}${s4}
             minWidth: "240px", boxShadow: "0 8px 24px rgba(0,0,0,0.6)"
         });
 
+        // Header do menu com botão de credenciais no canto superior direito
+        const menuHeader = document.createElement("div");
+        Object.assign(menuHeader.style, {
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            marginBottom: "4px", paddingBottom: "8px", borderBottom: "1px solid #222"
+        });
+        const menuTitulo = document.createElement("span");
+        menuTitulo.innerText = "⚙️ Scripts Empresa";
+        Object.assign(menuTitulo.style, { color: "#555", fontSize: "10px", letterSpacing: "1.5px", textTransform: "uppercase" });
+
+        const btnCredMenu = document.createElement("button");
+        btnCredMenu.innerText = "🔑";
+        btnCredMenu.title = "Redefinir credenciais Trello";
+        Object.assign(btnCredMenu.style, {
+            background: "transparent", border: "1px solid #333", borderRadius: "50%",
+            width: "24px", height: "24px", cursor: "pointer", fontSize: "11px",
+            color: "#555", display: "flex", alignItems: "center", justifyContent: "center",
+            padding: "0", transition: "color 0.15s, border-color 0.15s"
+        });
+        btnCredMenu.onmouseenter = () => { btnCredMenu.style.color = "#f9a825"; btnCredMenu.style.borderColor = "#f9a825"; };
+        btnCredMenu.onmouseleave = () => { btnCredMenu.style.color = "#555"; btnCredMenu.style.borderColor = "#333"; };
+        btnCredMenu.onclick = () => { menu.remove(); limparCredenciais(); };
+
+        menuHeader.appendChild(menuTitulo);
+        menuHeader.appendChild(btnCredMenu);
+        menu.appendChild(menuHeader);
+
         function sep(label) {
             const el = document.createElement("div");
             el.innerText = label;
@@ -648,22 +714,16 @@ ${s1}${s2}${s3}${s4}
                 { id:"btn-ml",   label:"🔗 Abrir Chats ML",  fn: abrirML },
                 { id:"btn-data", label:"📅 Abrir por Data",   fn: abrirPorData },
             ]},
-            { label: "📊 Métricas (7 dias)", itens: [
-                { id:"btn-ms7",  label:"📊 Shopee — 7 dias",  fn: metricasShopee },
+            { label: "📊 Métricas", itens: [
                 { id:"btn-ml7",  label:"📊 ML — 7 dias",      fn: metricasML },
-            ]},
-            { label: "📊 Métricas (14 dias)", itens: [
-                { id:"btn-ms14", label:"📊 Shopee — 14 dias", fn: metricasShopee14 },
                 { id:"btn-ml14", label:"📊 ML — 14 dias",     fn: metricasML14 },
+                { id:"btn-ms7",  label:"📊 Shopee — 7 dias",  fn: metricasShopee },
+                { id:"btn-ms14", label:"📊 Shopee — 14 dias", fn: metricasShopee14 },
             ]},
             { label: "🔎 Auditoria", itens: [
-                { id:"btn-aud-ml",     label:"🔎 Auditar board ML",    fn: () => auditar("ML") },
-                { id:"btn-aud-shopee", label:"🔎 Auditar board Shopee", fn: () => auditar("Shopee") },
-                { id:"btn-listas",     label:"🚨 Listas lotadas",       fn: alertaListasLotadas },
+                { id:"btn-aud",   label:"🔎 Auditar quadro",  fn: auditarAtual },
+                { id:"btn-listas", label:"🚨 Listas lotadas",  fn: alertaListasLotadas },
             ]},
-            { label: "⚙️ Config", itens: [
-                { id:"btn-creds", label:"🔑 Redefinir Credenciais", fn: limparCredenciais },
-            ]}
         ];
 
         grupos.forEach(({ label, itens }) => {
