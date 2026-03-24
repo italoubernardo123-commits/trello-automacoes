@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Scripts Empresa (Unificado)
 // @namespace    empresa
-// @version      4.6
+// @version      4.7
 // @description  Automações Trello
 // @match        https://trello.com/b/*
 // @grant        GM_xmlhttpRequest
@@ -11,6 +11,90 @@
 
 (function () {
     'use strict';
+
+    // =========================
+    // CHANGELOG — edite aqui ao atualizar!
+    // =========================
+
+    const VERSAO_ATUAL = "4.7";
+
+    const CHANGELOG = {
+        "4.7": [
+            "Abrir Chats ML reformulado — sem precisar copiar IDs",
+            "Selecionar lista por clique (sem digitar)",
+            "Lembra onde parou por lista (continuar/reiniciar)",
+            "Mostra quantos cards restam ao pausar",
+            "Zera progresso automaticamente ao terminar a lista",
+            "Atalho Alt+A para abrir chats direto",
+        ],
+        "4.2": [
+            "Botão ⚙️ circular",
+            "🔑 Credenciais dentro do menu (canto superior direito)",
+            "Métricas em grupo único (ML 7/14 e Shopee 7/14)",
+            "Auditoria unificada (detecta ML ou Shopee automaticamente)",
+            "Cards de controle ignorados na auditoria",
+            "Títulos duplicados mostram etiqueta 'Mais compras'",
+        ],
+        "4.1": [
+            "Métricas separadas por plataforma",
+            "Alerta de listas lotadas (botão pisca vermelho)",
+            "Redefinir credenciais pelo menu",
+        ],
+    };
+
+    function mostrarChangelog() {
+        const chaveSalva = "scripts_empresa_versao_vista";
+        const versaoVista = localStorage.getItem(chaveSalva);
+        if (versaoVista === VERSAO_ATUAL) return; // já viu essa versão
+
+        const linhas = CHANGELOG[VERSAO_ATUAL];
+        if (!linhas || linhas.length === 0) return;
+
+        localStorage.setItem(chaveSalva, VERSAO_ATUAL);
+
+        // Criar notificação
+        const notif = document.createElement("div");
+        Object.assign(notif.style, {
+            position: "fixed", bottom: "80px", right: "20px", zIndex: "9999999",
+            background: "#1a1a1a", border: "1px solid #f9a825", borderRadius: "12px",
+            padding: "16px 20px", maxWidth: "300px", color: "#fff",
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: "12px",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.7)",
+            animation: "fadeInUp 0.3s ease",
+            transition: "opacity 0.4s ease"
+        });
+
+        // Estilo da animação
+        const style = document.createElement("style");
+        style.textContent = `
+            @keyframes fadeInUp {
+                from { opacity: 0; transform: translateY(20px); }
+                to   { opacity: 1; transform: translateY(0); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        notif.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                <span style="color:#f9a825;font-weight:bold;font-size:13px">✨ v${VERSAO_ATUAL} — novidades</span>
+                <button id="fechar-changelog" style="background:none;border:none;color:#555;cursor:pointer;font-size:16px;padding:0;line-height:1">×</button>
+            </div>
+            <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:5px">
+                ${linhas.map(l => `<li style="color:#ccc">• ${l}</li>`).join("")}
+            </ul>
+            <div style="margin-top:12px;color:#444;font-size:10px">Some em 8s · não aparece novamente</div>
+        `;
+
+        document.body.appendChild(notif);
+
+        document.getElementById("fechar-changelog").onclick = () => notif.remove();
+
+        // Some automaticamente em 8 segundos
+        setTimeout(() => {
+            notif.style.opacity = "0";
+            setTimeout(() => notif.remove(), 400);
+        }, 8000);
+    }
 
     // =========================
     // CONFIG GLOBAL (SEGURA)
@@ -287,11 +371,26 @@ ${linhas}
     }
 
     // =========================
+    // DETECTAR PLATAFORMA DO BOARD
+    // =========================
+
+    async function detectarPlataformaDoBoardAtual() {
+        const boardId = location.pathname.split("/")[2];
+        const board = await api(`/boards/${boardId}?fields=name`);
+        const nome = (board.name || "").toLowerCase();
+        if (nome.includes("shopee")) return "shopee";
+        if (nome.includes("ml") || nome.includes("mercado livre") || nome.includes("mercadolivre")) return "ml";
+        return null; // não identificado
+    }
+
+    // =========================
     // MÉTRICAS SHOPEE
     // =========================
 
     async function metricasShopee() {
         try {
+            const plat = await detectarPlataformaDoBoardAtual();
+            if (plat === "ml") { alert("⚠️ Você está no quadro do ML!\nAcesse o quadro da Shopee para ver as métricas dela."); return; }
             const tabela = await buscarTabelaMetricas(LISTAS_SHOPEE);
             abrirJanelaMetricas(tabela, "MÉTRICAS SHOPEE", "#ff9800", 7);
         } catch { alert("❌ Erro ao buscar dados. Verifique suas credenciais."); }
@@ -303,6 +402,8 @@ ${linhas}
 
     async function metricasShopee14() {
         try {
+            const plat = await detectarPlataformaDoBoardAtual();
+            if (plat === "ml") { alert("⚠️ Você está no quadro do ML!\nAcesse o quadro da Shopee para ver as métricas dela."); return; }
             const tabela = await buscarTabelaMetricas(LISTAS_SHOPEE);
             abrirJanelaMetricas(tabela, "MÉTRICAS SHOPEE", "#ff9800", 14);
         } catch { alert("❌ Erro ao buscar dados. Verifique suas credenciais."); }
@@ -314,6 +415,8 @@ ${linhas}
 
     async function metricasML() {
         try {
+            const plat = await detectarPlataformaDoBoardAtual();
+            if (plat === "shopee") { alert("⚠️ Você está no quadro da Shopee!\nAcesse o quadro do ML para ver as métricas dele."); return; }
             const tabela = await buscarTabelaMetricas(LISTAS_ML);
             abrirJanelaMetricas(tabela, "MÉTRICAS MERCADO LIVRE", "#ffde21", 7);
         } catch { alert("❌ Erro ao buscar dados. Verifique suas credenciais."); }
@@ -325,6 +428,8 @@ ${linhas}
 
     async function metricasML14() {
         try {
+            const plat = await detectarPlataformaDoBoardAtual();
+            if (plat === "shopee") { alert("⚠️ Você está no quadro da Shopee!\nAcesse o quadro do ML para ver as métricas dele."); return; }
             const tabela = await buscarTabelaMetricas(LISTAS_ML);
             abrirJanelaMetricas(tabela, "MÉTRICAS MERCADO LIVRE", "#ffde21", 14);
         } catch { alert("❌ Erro ao buscar dados. Verifique suas credenciais."); }
@@ -554,38 +659,165 @@ ${s1}${s2}${s3}${s4}
     // ABRIR CHATS ML
     // =========================
 
+    // Chave localStorage para salvar progresso por lista
+    function chaveProgresso(listId) { return `ml_progresso_${listId}`; }
+
+    function salvarProgresso(listId, shortLink, nomeCard) {
+        localStorage.setItem(chaveProgresso(listId), JSON.stringify({ shortLink, nomeCard }));
+    }
+
+    function carregarProgresso(listId) {
+        try { return JSON.parse(localStorage.getItem(chaveProgresso(listId))); } catch { return null; }
+    }
+
+    function limparProgresso(listId) { localStorage.removeItem(chaveProgresso(listId)); }
+
     async function abrirML() {
-        const listName = prompt("Nome da lista:", "INICIAL");
-        if (!listName) return;
-
-        const startAfter = prompt("ID do card para começar (opcional):")?.trim();
-        const limit = parseInt(prompt("Quantidade máxima de links para abrir:"), 10);
-        if (!limit || isNaN(limit)) return alert("❌ Número inválido.");
-        if (limit > 20 && !confirm(`Você vai abrir até ${limit} links de uma vez.\n\nContinuar?`)) return;
-
         const boardId = location.pathname.split("/")[2];
-        try {
-            const lists = await api(`/boards/${boardId}/lists`);
-            const list  = lists.find(l => l.name.trim().toUpperCase() === listName.trim().toUpperCase());
-            if (!list) return alert(`❌ Lista "${listName}" não encontrada.`);
 
-            const cards = await api(`/lists/${list.id}/cards`);
-            let opened = 0, canStart = !startAfter;
+        // Buscar listas do board
+        let lists;
+        try { lists = await api(`/boards/${boardId}/lists`); }
+        catch { return alert("❌ Erro ao buscar listas."); }
 
-            for (const card of cards) {
-                if (!canStart) { if (card.shortLink === startAfter) canStart = true; continue; }
-                if (opened >= limit) break;
-                if (!card.desc) continue;
-                const links = card.desc.match(ML_REGEX) || [];
-                for (const link of links) {
-                    if (opened >= limit) break;
-                    window.open(link, "_blank"); opened++;
-                }
+        // Montar overlay de seleção
+        if (document.getElementById("overlay-abrirml")) return;
+        const overlay = document.createElement("div");
+        overlay.id = "overlay-abrirml";
+        Object.assign(overlay.style, {
+            position: "fixed", inset: "0", background: "rgba(0,0,0,0.78)",
+            zIndex: "9999999", display: "flex", alignItems: "center", justifyContent: "center"
+        });
+
+        overlay.innerHTML = `
+        <div style="background:#111;border:1px solid #333;border-radius:14px;padding:28px 32px;
+            min-width:340px;max-width:420px;width:90%;color:#fff;font-family:'IBM Plex Mono',monospace">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+                <h2 style="font-size:1rem;letter-spacing:2px;color:#f9a825">🔗 ABRIR CHATS ML</h2>
+                <button id="fechar-abrirml" style="background:none;border:none;color:#666;font-size:18px;cursor:pointer">✕</button>
+            </div>
+
+            <label style="color:#aaa;font-size:11px;letter-spacing:1px">SELECIONE A LISTA</label>
+            <select id="aml-lista" style="width:100%;background:#1e1e1e;border:1px solid #444;border-radius:8px;
+                padding:9px 12px;color:#fff;font-family:inherit;font-size:13px;margin-top:6px;margin-bottom:16px">
+                ${lists.map(l => `<option value="${l.id}" data-nome="${l.name}">${l.name}</option>`).join("")}
+            </select>
+
+            <div id="aml-progresso-info" style="margin-bottom:16px;display:none">
+                <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:10px 14px;font-size:12px">
+                    <span style="color:#aaa">⏸️ Parou em: </span>
+                    <span id="aml-ultimo-card" style="color:#f9a825"></span>
+                    <div style="margin-top:8px;display:flex;gap:8px">
+                        <button id="aml-btn-continuar" style="flex:1;background:#1e3a1e;border:1px solid #2e7d32;border-radius:6px;
+                            padding:7px;color:#81c784;cursor:pointer;font-family:inherit;font-size:12px">▶ Continuar</button>
+                        <button id="aml-btn-reiniciar" style="flex:1;background:#1e1e1e;border:1px solid #444;border-radius:6px;
+                            padding:7px;color:#aaa;cursor:pointer;font-family:inherit;font-size:12px">⏮ Do início</button>
+                    </div>
+                </div>
+            </div>
+
+            <label style="color:#aaa;font-size:11px;letter-spacing:1px">QUANTIDADE DE LINKS</label>
+            <input id="aml-qtd" type="number" min="1" value="20"
+                style="width:100%;background:#1e1e1e;border:1px solid #444;border-radius:8px;
+                padding:9px 12px;color:#fff;font-family:inherit;font-size:13px;margin-top:6px;margin-bottom:20px">
+
+            <button id="aml-btn-abrir" style="width:100%;background:#f9a825;border:none;border-radius:8px;
+                padding:11px;color:#111;font-weight:bold;font-family:inherit;font-size:13px;cursor:pointer;letter-spacing:1px">
+                ABRIR CHATS
+            </button>
+        </div>`;
+
+        document.body.appendChild(overlay);
+
+        // Estado do progresso
+        let startAfterShortLink = null;
+
+        function atualizarProgresso() {
+            const sel = document.getElementById("aml-lista");
+            const listId = sel.value;
+            const prog = carregarProgresso(listId);
+            const info = document.getElementById("aml-progresso-info");
+            if (prog) {
+                document.getElementById("aml-ultimo-card").innerText = prog.nomeCard;
+                info.style.display = "block";
+                startAfterShortLink = prog.shortLink; // padrão: continuar
+            } else {
+                info.style.display = "none";
+                startAfterShortLink = null;
             }
-            alert(`✅ ${opened} link(s) aberto(s).`);
-        } catch (err) {
-            alert("❌ Erro ao buscar lista."); console.error(err);
         }
+
+        atualizarProgresso();
+        document.getElementById("aml-lista").onchange = atualizarProgresso;
+
+        document.getElementById("aml-btn-continuar").onclick = () => {
+            const listId = document.getElementById("aml-lista").value;
+            const prog = carregarProgresso(listId);
+            startAfterShortLink = prog ? prog.shortLink : null;
+            document.getElementById("aml-btn-continuar").style.background = "#2e7d32";
+            document.getElementById("aml-btn-reiniciar").style.background = "#1e1e1e";
+        };
+
+        document.getElementById("aml-btn-reiniciar").onclick = () => {
+            startAfterShortLink = null;
+            document.getElementById("aml-btn-reiniciar").style.background = "#3a2a00";
+            document.getElementById("aml-btn-continuar").style.background = "#1e3a1e";
+        };
+
+        document.getElementById("fechar-abrirml").onclick = () => overlay.remove();
+        overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+
+        document.getElementById("aml-btn-abrir").onclick = async () => {
+            const sel    = document.getElementById("aml-lista");
+            const listId = sel.value;
+            const listNome = sel.options[sel.selectedIndex].dataset.nome;
+            const limit  = parseInt(document.getElementById("aml-qtd").value, 10);
+
+            if (!limit || isNaN(limit) || limit < 1) return alert("❌ Informe uma quantidade válida.");
+
+            overlay.remove();
+
+            try {
+                const cards = await api(`/lists/${listId}/cards`);
+                let opened = 0;
+                let canStart = !startAfterShortLink;
+                let ultimoShortLink = null, ultimoNome = null;
+
+                for (const card of cards) {
+                    if (!canStart) {
+                        if (card.shortLink === startAfterShortLink) canStart = true;
+                        continue;
+                    }
+                    if (opened >= limit) break;
+                    if (!card.desc) continue;
+                    const links = card.desc.match(ML_REGEX) || [];
+                    for (const link of links) {
+                        if (opened >= limit) break;
+                        window.open(link, "_blank");
+                        opened++;
+                    }
+                    if (opened > 0) { ultimoShortLink = card.shortLink; ultimoNome = card.name; }
+                }
+
+                // Salvar progresso
+                if (ultimoShortLink) salvarProgresso(listId, ultimoShortLink, ultimoNome);
+
+                // Verificar se chegou ao fim
+                const totalComLink = cards.filter(c => c.desc && c.desc.match(ML_REGEX)).length;
+                const idx = cards.findIndex(c => c.shortLink === ultimoShortLink);
+                const restantes = cards.slice(idx + 1).filter(c => c.desc && c.desc.match(ML_REGEX)).length;
+
+                if (restantes === 0) {
+                    limparProgresso(listId);
+                    alert(`✅ ${opened} link(s) aberto(s).\n\n🏁 Lista "${listNome}" concluída! Progresso zerado.`);
+                } else {
+                    alert(`✅ ${opened} link(s) aberto(s).\n\n📌 Parou em: "${ultimoNome}"\n📋 Ainda restam ~${restantes} card(s) com link.`);
+                }
+
+            } catch (err) {
+                alert("❌ Erro ao buscar cards."); console.error(err);
+            }
+        };
     }
 
     // =========================
@@ -682,7 +914,7 @@ ${s1}${s2}${s3}${s4}
             marginBottom: "4px", paddingBottom: "8px", borderBottom: "1px solid #222"
         });
         const menuTitulo = document.createElement("span");
-        menuTitulo.innerText = "⚙️ Scripts Empresa";
+        menuTitulo.innerText = "⚙️ Scripts Empresa v4.2";
         Object.assign(menuTitulo.style, { color: "#555", fontSize: "10px", letterSpacing: "1.5px", textTransform: "uppercase" });
 
         const btnCredMenu = document.createElement("button");
@@ -758,5 +990,25 @@ ${s1}${s2}${s3}${s4}
     // =========================
 
     criarBotaoFlutuante();
+    mostrarChangelog();
+
+    // Atalhos de teclado
+    document.addEventListener("keydown", function(e) {
+        // Alt+S → abre/fecha menu
+        if (e.altKey && (e.key === "s" || e.key === "S")) {
+            e.preventDefault();
+            toggleMenu();
+        }
+        // Alt+A → abre chats ML
+        if (e.altKey && (e.key === "a" || e.key === "A")) {
+            e.preventDefault();
+            abrirML();
+        }
+        // ESC → fecha menu se estiver aberto
+        if (e.key === "Escape") {
+            const menu = document.getElementById("menu-empresa");
+            if (menu) menu.remove();
+        }
+    });
 
 })();

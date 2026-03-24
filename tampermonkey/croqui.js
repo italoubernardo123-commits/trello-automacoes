@@ -6,6 +6,8 @@
 // @match        https://trello.com/b/*
 // @match        https://trello.com/c/*
 // @grant        GM_xmlhttpRequest
+// @updateURL    https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/refs/heads/main/tampermonkey/croqui.js
+// @downloadURL  https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/refs/heads/main/tampermonkey/croqui.js
 // ==/UserScript==
 
 (function () {
