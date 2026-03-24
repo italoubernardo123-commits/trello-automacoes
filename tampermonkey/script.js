@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Scripts Empresa (Unificado)
 // @namespace    empresa
-// @version      4.7
+// @version      4.8
 // @description  Automações Trello
 // @match        https://trello.com/b/*
 // @grant        GM_xmlhttpRequest
@@ -16,9 +16,12 @@
     // CHANGELOG — edite aqui ao atualizar!
     // =========================
 
-    const VERSAO_ATUAL = "4.7";
+    const VERSAO_ATUAL = "4.8";
 
     const CHANGELOG = {
+        "4.8": [
+            "correções 23/03",
+        ],
         "4.7": [
             "Abrir Chats ML reformulado — sem precisar copiar IDs",
             "Selecionar lista por clique (sem digitar)",
@@ -462,7 +465,7 @@ ${linhas}
 
         try {
             const [cards, lists] = await Promise.all([
-                api(`/boards/${boardId}/cards?fields=name,desc,url,idList,due,labels`),
+                api(`/boards/${boardId}/cards?fields=name,desc,url,idList,due,labels,cover`),
                 api(`/boards/${boardId}/lists?fields=name`)
             ]);
 
@@ -471,11 +474,14 @@ ${linhas}
 
             const titleMap = {}, linkMap = {}, semLink = [], semData = [];
 
-            // Filtrar cards de controle (separadores/cabeçalhos de lista)
-            const CTRL_RE = /^(──|==|--|🟢|🔶|⚫|🔴|🟡|•{2}|_{2}|\*{2}|#{2})/;
+            // Filtrar cards de controle — ignorar cards que têm capa real configurada
+            // O Trello sempre retorna cover:{}, só tem capa de verdade se tiver color OU idAttachment OU idUploadedBackground
             const cardsReais = cards.filter(card => {
-                const n = card.name.trim();
-                return n.length > 0 && !CTRL_RE.test(n);
+                if (!card.name.trim()) return false;
+                const cover = card.cover;
+                if (!cover) return true;
+                const temCapa = !!(cover.color || cover.idAttachment || cover.idUploadedBackground);
+                return !temCapa;
             });
 
             cardsReais.forEach(card => {
