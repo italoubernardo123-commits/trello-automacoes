@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Scripts Empresa (Unificado)
 // @namespace    empresa
-// @version      4.8
+// @version      4.9
 // @description  Automações Trello
 // @match        https://trello.com/b/*
 // @grant        GM_xmlhttpRequest
@@ -16,11 +16,17 @@
     // CHANGELOG — edite aqui ao atualizar!
     // =========================
 
-    const VERSAO_ATUAL = "4.8";
+    const VERSAO_ATUAL = "4.9";
 
     const CHANGELOG = {
+        "4.9": [
+            "Versão sincronizada automaticamente em todos os lugares",
+            "Histórico de listas recentes no Abrir Chats ML",
+            "Nova função: Mover Cards entre listas",
+            "Atalho Alt+M para mover cards",
+        ],
         "4.8": [
-            "correções 23/03",
+            "Auditoria agora ignora cards de controle (Power-Up com capa)",
         ],
         "4.7": [
             "Abrir Chats ML reformulado — sem precisar copiar IDs",
@@ -85,18 +91,18 @@
             <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:5px">
                 ${linhas.map(l => `<li style="color:#ccc">• ${l}</li>`).join("")}
             </ul>
-            <div style="margin-top:12px;color:#444;font-size:10px">Some em 8s · não aparece novamente</div>
+            <div style="margin-top:12px;color:#444;font-size:10px">Some em 12s · não aparece novamente</div>
         `;
 
         document.body.appendChild(notif);
 
         document.getElementById("fechar-changelog").onclick = () => notif.remove();
 
-        // Some automaticamente em 8 segundos
+        // Some automaticamente em 12 segundos
         setTimeout(() => {
             notif.style.opacity = "0";
             setTimeout(() => notif.remove(), 400);
-        }, 8000);
+        }, 12000);
     }
 
     // =========================
@@ -662,6 +668,48 @@ ${s1}${s2}${s3}${s4}
     }
 
     // =========================
+    // HISTÓRICO DE LISTAS RECENTES
+    // =========================
+
+    const CHAVE_LISTAS_RECENTES = "ml_listas_recentes";
+    const MAX_RECENTES = 5;
+
+    function salvarListaRecente(listId, listNome) {
+        let recentes = carregarListasRecentes();
+        recentes = recentes.filter(r => r.id !== listId); // remove se já existe
+        recentes.unshift({ id: listId, nome: listNome });  // adiciona no topo
+        if (recentes.length > MAX_RECENTES) recentes = recentes.slice(0, MAX_RECENTES);
+        localStorage.setItem(CHAVE_LISTAS_RECENTES, JSON.stringify(recentes));
+    }
+
+    function carregarListasRecentes() {
+        try { return JSON.parse(localStorage.getItem(CHAVE_LISTAS_RECENTES)) || []; }
+        catch { return []; }
+    }
+
+    function renderSelectComRecentes(lists, idSelect) {
+        const recentes = carregarListasRecentes();
+        const idsRecentes = recentes.map(r => r.id);
+        const listasFiltradas = lists.filter(l => !idsRecentes.includes(l.id));
+
+        let html = "";
+        if (recentes.length > 0) {
+            html += `<optgroup label="⭐ Recentes">`;
+            recentes.forEach(r => {
+                const existe = lists.find(l => l.id === r.id);
+                if (existe) html += `<option value="${r.id}" data-nome="${r.nome}">${r.nome}</option>`;
+            });
+            html += `</optgroup>`;
+            html += `<optgroup label="── Todas ──">`;
+        }
+        listasFiltradas.forEach(l => {
+            html += `<option value="${l.id}" data-nome="${l.name}">${l.name}</option>`;
+        });
+        if (recentes.length > 0) html += `</optgroup>`;
+        return html;
+    }
+
+    // =========================
     // ABRIR CHATS ML
     // =========================
 
@@ -706,7 +754,7 @@ ${s1}${s2}${s3}${s4}
             <label style="color:#aaa;font-size:11px;letter-spacing:1px">SELECIONE A LISTA</label>
             <select id="aml-lista" style="width:100%;background:#1e1e1e;border:1px solid #444;border-radius:8px;
                 padding:9px 12px;color:#fff;font-family:inherit;font-size:13px;margin-top:6px;margin-bottom:16px">
-                ${lists.map(l => `<option value="${l.id}" data-nome="${l.name}">${l.name}</option>`).join("")}
+                ${renderSelectComRecentes(lists, "aml-lista")}
             </select>
 
             <div id="aml-progresso-info" style="margin-bottom:16px;display:none">
@@ -805,7 +853,8 @@ ${s1}${s2}${s3}${s4}
                     if (opened > 0) { ultimoShortLink = card.shortLink; ultimoNome = card.name; }
                 }
 
-                // Salvar progresso
+                // Salvar lista recente e progresso
+                salvarListaRecente(listId, listNome);
                 if (ultimoShortLink) salvarProgresso(listId, ultimoShortLink, ultimoNome);
 
                 // Verificar se chegou ao fim
@@ -822,6 +871,262 @@ ${s1}${s2}${s3}${s4}
 
             } catch (err) {
                 alert("❌ Erro ao buscar cards."); console.error(err);
+            }
+        };
+    }
+
+    // =========================
+    // MOVER CARDS
+    // =========================
+
+    async function moverCards() {
+        const boardId = location.pathname.split("/")[2];
+
+        let lists;
+        try { lists = await api(`/boards/${boardId}/lists`); }
+        catch { return alert("❌ Erro ao buscar listas."); }
+
+        if (document.getElementById("overlay-movercards")) return;
+        const overlay = document.createElement("div");
+        overlay.id = "overlay-movercards";
+        Object.assign(overlay.style, {
+            position: "fixed", inset: "0", background: "rgba(0,0,0,0.82)",
+            zIndex: "9999999", display: "flex", alignItems: "center",
+            justifyContent: "center", overflowY: "auto", padding: "20px"
+        });
+
+        overlay.innerHTML = `
+        <div style="background:#111;border:1px solid #333;border-radius:14px;padding:28px 32px;
+            min-width:360px;max-width:480px;width:90%;color:#fff;font-family:'IBM Plex Mono',monospace">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+                <h2 style="font-size:1rem;letter-spacing:2px;color:#f9a825">🔀 MOVER CARDS</h2>
+                <button id="fechar-mover" style="background:none;border:none;color:#666;font-size:18px;cursor:pointer">✕</button>
+            </div>
+
+            <!-- ORIGEM -->
+            <label style="color:#aaa;font-size:11px;letter-spacing:1px">LISTA DE ORIGEM</label>
+            <select id="mv-origem" style="width:100%;background:#1e1e1e;border:1px solid #444;border-radius:8px;
+                padding:9px 12px;color:#fff;font-family:inherit;font-size:13px;margin-top:6px;margin-bottom:6px">
+                ${renderSelectComRecentes(lists, "mv-origem")}
+            </select>
+            <div id="mv-origem-info" style="color:#555;font-size:11px;margin-bottom:16px">Carregando...</div>
+
+            <!-- FILTRO DE DATA -->
+            <label style="color:#aaa;font-size:11px;letter-spacing:1px">FILTRAR POR DATA DE VENCIMENTO</label>
+            <div style="display:flex;gap:8px;margin-top:6px;margin-bottom:6px;align-items:center">
+                <input type="date" id="mv-data-filtro"
+                    style="flex:1;background:#1e1e1e;border:1px solid #444;border-radius:8px;
+                    padding:9px 12px;color:#fff;font-family:inherit;font-size:13px">
+                <button id="mv-limpar-data" style="background:#1e1e1e;border:1px solid #444;border-radius:8px;
+                    padding:9px 12px;color:#aaa;cursor:pointer;font-family:inherit;font-size:12px;white-space:nowrap">
+                    ✕ Todos
+                </button>
+            </div>
+            <div id="mv-data-info" style="color:#555;font-size:11px;margin-bottom:16px"></div>
+
+            <!-- QUANTIDADE -->
+            <label style="color:#aaa;font-size:11px;letter-spacing:1px">QUANTIDADE DE CARDS A MOVER</label>
+            <input id="mv-qtd" type="number" min="1" value="10"
+                style="width:100%;background:#1e1e1e;border:1px solid #444;border-radius:8px;
+                padding:9px 12px;color:#fff;font-family:inherit;font-size:13px;margin-top:6px;margin-bottom:16px">
+
+            <!-- DESTINOS -->
+            <label style="color:#aaa;font-size:11px;letter-spacing:1px">LISTAS DE DESTINO</label>
+            <div id="mv-destinos" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;margin-bottom:8px"></div>
+            <button id="mv-add-destino" style="width:100%;background:#1e1e1e;border:1px dashed #444;border-radius:8px;
+                padding:8px;color:#aaa;cursor:pointer;font-family:inherit;font-size:12px;margin-bottom:16px">
+                + Adicionar lista de destino
+            </button>
+
+            <!-- DIVISÃO -->
+            <div style="display:flex;gap:12px;margin-bottom:20px">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:#aaa;font-size:12px">
+                    <input type="radio" name="mv-divisao" id="mv-div-igual" value="igual" checked
+                        style="accent-color:#f9a825"> Dividir igualmente
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:#aaa;font-size:12px">
+                    <input type="radio" name="mv-divisao" id="mv-div-manual" value="manual"
+                        style="accent-color:#f9a825"> Definir manualmente
+                </label>
+            </div>
+
+            <button id="mv-btn-mover" style="width:100%;background:#f9a825;border:none;border-radius:8px;
+                padding:11px;color:#111;font-weight:bold;font-family:inherit;font-size:13px;cursor:pointer;letter-spacing:1px">
+                MOVER CARDS
+            </button>
+        </div>`;
+
+        document.body.appendChild(overlay);
+        document.getElementById("fechar-mover").onclick = () => overlay.remove();
+        overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+
+        // Estado
+        let cardsOrigem = [];
+        let cardsFiltrados = [];
+
+        // Carregar info da lista de origem
+        async function carregarOrigem() {
+            const listId = document.getElementById("mv-origem").value;
+            document.getElementById("mv-origem-info").innerText = "Carregando...";
+            try {
+                cardsOrigem = await api(`/lists/${listId}/cards`);
+                atualizarFiltro();
+                salvarListaRecente(listId, document.getElementById("mv-origem").options[document.getElementById("mv-origem").selectedIndex].dataset.nome);
+            } catch {
+                document.getElementById("mv-origem-info").innerText = "❌ Erro ao carregar lista.";
+            }
+        }
+
+        function atualizarFiltro() {
+            const dataFiltro = document.getElementById("mv-data-filtro").value;
+            if (dataFiltro) {
+                cardsFiltrados = cardsOrigem.filter(c => {
+                    if (!c.due) return false;
+                    const dueISO = new Date(c.due).toISOString().slice(0, 10);
+                    return dueISO === dataFiltro;
+                });
+                document.getElementById("mv-data-info").innerText =
+                    `📅 ${cardsFiltrados.length} card(s) com vencimento nesta data (de ${cardsOrigem.length} total)`;
+            } else {
+                cardsFiltrados = [...cardsOrigem];
+                document.getElementById("mv-data-info").innerText = "";
+            }
+            document.getElementById("mv-origem-info").innerText =
+                `${cardsOrigem.length} card(s) na lista · ${cardsFiltrados.length} disponíveis`;
+            document.getElementById("mv-qtd").max = cardsFiltrados.length;
+            document.getElementById("mv-qtd").value = Math.min(
+                parseInt(document.getElementById("mv-qtd").value) || cardsFiltrados.length,
+                cardsFiltrados.length
+            );
+            atualizarDivisao();
+        }
+
+        // Destinos
+        function addDestino() {
+            const container = document.getElementById("mv-destinos");
+            const idx = container.children.length;
+            const div = document.createElement("div");
+            div.style.cssText = "display:flex;gap:6px;align-items:center";
+            div.innerHTML = `
+                <select data-destino="${idx}" style="flex:1;background:#1e1e1e;border:1px solid #444;border-radius:8px;
+                    padding:8px 10px;color:#fff;font-family:'IBM Plex Mono',monospace;font-size:12px">
+                    ${renderSelectComRecentes(lists, "")}
+                </select>
+                <input type="number" data-qtd="${idx}" min="1" value="0"
+                    style="width:70px;background:#1e1e1e;border:1px solid #444;border-radius:8px;
+                    padding:8px;color:#fff;font-family:'IBM Plex Mono',monospace;font-size:12px;display:none">
+                <button data-rm="${idx}" style="background:#1e1e1e;border:1px solid #444;border-radius:6px;
+                    padding:8px 10px;color:#ef5350;cursor:pointer;font-size:13px;flex-shrink:0">✕</button>
+            `;
+            div.querySelector(`[data-rm="${idx}"]`).onclick = () => { div.remove(); atualizarDivisao(); };
+            div.querySelector(`[data-destino="${idx}"]`).onchange = atualizarDivisao;
+            container.appendChild(div);
+            atualizarDivisao();
+        }
+
+        function atualizarDivisao() {
+            const divisao = document.querySelector('input[name="mv-divisao"]:checked')?.value;
+            const qtd = parseInt(document.getElementById("mv-qtd").value) || 0;
+            const destinos = document.querySelectorAll("[data-destino]");
+            const n = destinos.length;
+            if (n === 0) return;
+
+            destinos.forEach((sel, i) => {
+                const inputQtd = document.querySelector(`[data-qtd="${sel.dataset.destino}"]`);
+                if (divisao === "igual") {
+                    inputQtd.style.display = "none";
+                    const base = Math.floor(qtd / n);
+                    const extra = i < (qtd % n) ? 1 : 0;
+                    inputQtd.value = base + extra;
+                } else {
+                    inputQtd.style.display = "block";
+                }
+            });
+        }
+
+        document.getElementById("mv-origem").onchange = carregarOrigem;
+        document.getElementById("mv-data-filtro").onchange = atualizarFiltro;
+        document.getElementById("mv-limpar-data").onclick = () => {
+            document.getElementById("mv-data-filtro").value = "";
+            atualizarFiltro();
+        };
+        document.getElementById("mv-add-destino").onclick = addDestino;
+        document.querySelectorAll('input[name="mv-divisao"]').forEach(r => r.onchange = atualizarDivisao);
+        document.getElementById("mv-qtd").oninput = atualizarDivisao;
+
+        // Adicionar primeiro destino automaticamente
+        addDestino();
+        await carregarOrigem();
+
+        // EXECUTAR MOVER
+        document.getElementById("mv-btn-mover").onclick = async () => {
+            const origemId = document.getElementById("mv-origem").value;
+            const qtdTotal = parseInt(document.getElementById("mv-qtd").value) || 0;
+            const divisao  = document.querySelector('input[name="mv-divisao"]:checked')?.value;
+
+            const destinos = [...document.querySelectorAll("[data-destino]")].map((sel, i) => ({
+                listId: sel.value,
+                nome: sel.options[sel.selectedIndex]?.dataset?.nome || sel.options[sel.selectedIndex]?.text || "",
+                qtd: parseInt(document.querySelector(`[data-qtd="${sel.dataset.destino}"]`)?.value) || 0
+            })).filter(d => d.listId && d.listId !== origemId);
+
+            if (destinos.length === 0) return alert("❌ Adicione pelo menos uma lista de destino.");
+            if (qtdTotal < 1) return alert("❌ Informe uma quantidade válida.");
+
+            // Calcular distribuição
+            let distribuicao;
+            if (divisao === "igual") {
+                const n = destinos.length;
+                distribuicao = destinos.map((d, i) => ({
+                    ...d,
+                    qtd: Math.floor(qtdTotal / n) + (i < (qtdTotal % n) ? 1 : 0)
+                }));
+            } else {
+                distribuicao = destinos;
+                const totalManual = distribuicao.reduce((s, d) => s + d.qtd, 0);
+                if (totalManual !== qtdTotal) {
+                    if (!confirm(`⚠️ A soma das quantidades (${totalManual}) é diferente do total (${qtdTotal}). Continuar mesmo assim?`)) return;
+                }
+            }
+
+            // Pegar cards a mover (na ordem da lista)
+            const cardsParaMover = cardsFiltrados.slice(0, qtdTotal);
+
+            if (cardsParaMover.length === 0) return alert("❌ Nenhum card disponível para mover.");
+
+            overlay.remove();
+
+            // Confirmar
+            const resumo = distribuicao.map(d => `  → ${d.nome}: ${d.qtd} cards`).join("\n");
+            if (!confirm(`🔀 Mover ${cardsParaMover.length} cards:\n\n${resumo}\n\nConfirmar?`)) return;
+
+            // Executar movimentação
+            let idx = 0;
+            let erros = 0;
+            for (const dest of distribuicao) {
+                const lote = cardsParaMover.slice(idx, idx + dest.qtd);
+                idx += dest.qtd;
+                for (const card of lote) {
+                    try {
+                        await new Promise((resolve, reject) => {
+                            GM_xmlhttpRequest({
+                                method: "PUT",
+                                url: `https://api.trello.com/1/cards/${card.id}?key=${API_KEY}&token=${API_TOKEN}`,
+                                headers: { "Content-Type": "application/json" },
+                                data: JSON.stringify({ idList: dest.listId }),
+                                onload: r => { try { resolve(JSON.parse(r.responseText)); } catch(e) { reject(e); } },
+                                onerror: reject
+                            });
+                        });
+                        salvarListaRecente(dest.listId, dest.nome);
+                    } catch { erros++; }
+                }
+            }
+
+            if (erros > 0) {
+                alert(`⚠️ Concluído com ${erros} erro(s). Verifique o board.`);
+            } else {
+                alert(`✅ ${cardsParaMover.length} card(s) movidos com sucesso!`);
             }
         };
     }
@@ -877,7 +1182,7 @@ ${s1}${s2}${s3}${s4}
 
         // Botão principal ⚙️ — circular
         const btn = document.createElement("button");
-        btn.id = "btn-empresa"; btn.innerText = "⚙️"; btn.title = "Scripts Empresa v4.2 — Automações Trello";
+        btn.id = "btn-empresa"; btn.innerText = "⚙️"; btn.title = `Scripts Empresa v${VERSAO_ATUAL} — Automações Trello`;
         Object.assign(btn.style, {
             position: "fixed", bottom: "20px", right: "20px", zIndex: "999999",
             width: "46px", height: "46px", borderRadius: "50%",
@@ -920,7 +1225,7 @@ ${s1}${s2}${s3}${s4}
             marginBottom: "4px", paddingBottom: "8px", borderBottom: "1px solid #222"
         });
         const menuTitulo = document.createElement("span");
-        menuTitulo.innerText = "⚙️ Scripts Empresa v4.2";
+        menuTitulo.innerText = `⚙️ Scripts Empresa v${VERSAO_ATUAL}`;
         Object.assign(menuTitulo.style, { color: "#555", fontSize: "10px", letterSpacing: "1.5px", textTransform: "uppercase" });
 
         const btnCredMenu = document.createElement("button");
@@ -957,6 +1262,9 @@ ${s1}${s2}${s3}${s4}
                 { id:"btn-ml14", label:"📊 ML — 14 dias",     fn: metricasML14 },
                 { id:"btn-ms7",  label:"📊 Shopee — 7 dias",  fn: metricasShopee },
                 { id:"btn-ms14", label:"📊 Shopee — 14 dias", fn: metricasShopee14 },
+            ]},
+            { label: "🔀 Distribuição", itens: [
+                { id:"btn-mover", label:"🔀 Mover Cards",       fn: moverCards },
             ]},
             { label: "🔎 Auditoria", itens: [
                 { id:"btn-aud",   label:"🔎 Auditar quadro",  fn: auditarAtual },
@@ -1009,6 +1317,11 @@ ${s1}${s2}${s3}${s4}
         if (e.altKey && (e.key === "a" || e.key === "A")) {
             e.preventDefault();
             abrirML();
+        }
+        // Alt+M → mover cards
+        if (e.altKey && (e.key === "m" || e.key === "M")) {
+            e.preventDefault();
+            moverCards();
         }
         // ESC → fecha menu se estiver aberto
         if (e.key === "Escape") {
