@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello — Gerador de Croqui
 // @namespace    empresa-croqui
-// @version      3.3
+// @version      3.4
 // @description  Gera folha de croqui a partir do card aberto no Trello
 // @match        https://trello.com/b/*
 // @match        https://trello.com/c/*
@@ -112,7 +112,7 @@
         const btnCroqui = document.createElement("button");
         btnCroqui.id = "btn-croqui";
         btnCroqui.innerText = "📄 Croqui";
-        btnCroqui.title = "Gerar Croqui (Alt+C) — v3.3";
+        btnCroqui.title = "Gerar Croqui (Alt+C) — v3.4";
         Object.assign(btnCroqui.style, {
             position: "fixed", bottom: "20px", right: "120px", zIndex: "999999",
             padding: "10px 14px", borderRadius: "8px", border: "2px solid #f9a825",
@@ -380,9 +380,9 @@
 
         // Cores por combinação plataforma + modelo
         // ML 2,80m    → amarelo (#FFD600) cabeçalho + azul cliente
-        // ML 2m       → verde  (#00c853) cabeçalho + verde escuro cliente
+        // ML 2m       → verde  (#00ff01) cabeçalho + preto cliente
         // Shopee 2,80m → vermelho (#c0392b) cabeçalho + preto cliente
-        // Shopee 2m   → roxo claro (#ce93d8) cabeçalho + roxo escuro cliente
+        // Shopee 2m   → roxo  (#ff00fe) cabeçalho + preto cliente
 
         let corCab, corCabTxt, corCliente, corData, corDataTxt;
 
@@ -393,9 +393,9 @@
             corData    = "#FFD600";  corDataTxt = "#1a1a1a";
         } else if (isML && is2m) {
             // ML 2m — verde e preto
-            corCab     = "#00c853";  corCabTxt  = "#1a1a1a";
-            corCliente = "#1b5e20";
-            corData    = "#00c853";  corDataTxt = "#1a1a1a";
+            corCab     = "#00ff01";  corCabTxt  = "#1a1a1a";
+            corCliente = "#1a1a1a";
+            corData    = "#00ff01";  corDataTxt = "#1a1a1a";
         } else if (!isML && !is2m) {
             // Shopee 2,80m — vermelho e branco
             corCab     = "#c0392b";  corCabTxt  = "#fff";
@@ -403,14 +403,14 @@
             corData    = "#c0392b";  corDataTxt = "#fff";
         } else {
             // Shopee 2m — roxo claro e preto
-            corCab     = "#ce93d8";  corCabTxt  = "#1a1a1a";
-            corCliente = "#6a1b9a";
-            corData    = "#ce93d8";  corDataTxt = "#1a1a1a";
+            corCab     = "#ff00fe";  corCabTxt  = "#1a1a1a";
+            corCliente = "#1a1a1a";
+            corData    = "#ff00fe";  corDataTxt = "#1a1a1a";
         }
 
         // Tarja 2m
         const corTarja    = "#1a1a1a";
-        const corTarjaTxt = isML ? "#00c853" : "#ce93d8";
+        const corTarjaTxt = isML ? "#00ff01" : "#ff00fe";
         const txtTarja    = "MODELO 2mts";
 
         // Logos SVG inline — sem dependência externa
@@ -616,7 +616,7 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    max-height: ${d.doisMetros ? "620px" : "700px"};
+    max-height: ${d.doisMetros ? "559px" : "665px"};
     overflow: hidden;
     gap: 2px;
 }
@@ -654,10 +654,11 @@ body {
 }
 .de-valor {
     font-family: 'Oswald', sans-serif;
-    font-weight: 700;
-    font-size: 38px;
+    font-weight: 800;
+    font-size: 40px;
     color: ${corDataTxt};
     line-height: 1;
+    letter-spacing: 1px;
 }
 
 /* TARJA 2M */
@@ -665,15 +666,14 @@ body {
     background: ${corTarja};
     color: ${corTarjaTxt};
     text-align: center;
-    padding: 14px 0;
+    padding: 20px 0;
     font-weight: 900;
-    font-size: 42px;
+    font-size: 52px;
     font-style: italic;
-    letter-spacing: 6px;
+    letter-spacing: 8px;
     flex-shrink: 0;
     border-radius: 4px;
     margin: 2px 0;
-    text-shadow: 2px 2px 0px rgba(0,0,0,0.4);
 }
 
 @media print {
@@ -713,7 +713,7 @@ body {
 
     <div class="banner-wrap">
         <div class="banner-area">${bannerHTML}</div>
-        ${d.doisMetros ? `<div class="tarja-2m">✦&nbsp;&nbsp;${txtTarja}&nbsp;&nbsp;✦</div>` : ""}
+        ${d.doisMetros ? `<div class="tarja-2m">${txtTarja}</div>` : ""}
     </div>
 
     <div class="rodape">
