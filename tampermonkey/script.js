@@ -13,7 +13,7 @@
     'use strict';
 
     // =========================
-    // CHANGELOG — edite aqui ao atualizar!
+    // CHANGELOG — edite aqui ao atualizar
     // =========================
 
     const VERSAO_ATUAL = "4.9";

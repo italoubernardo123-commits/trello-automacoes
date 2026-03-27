@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello — Gerador de Croqui
 // @namespace    empresa-croqui
-// @version      3.1
+// @version      3.2
 // @description  Gera folha de croqui a partir do card aberto no Trello
 // @match        https://trello.com/b/*
 // @match        https://trello.com/c/*
@@ -112,7 +112,7 @@
         const btnCroqui = document.createElement("button");
         btnCroqui.id = "btn-croqui";
         btnCroqui.innerText = "📄 Croqui";
-        btnCroqui.title = "Gerar Croqui (Alt+C) — v3.1";
+        btnCroqui.title = "Gerar Croqui (Alt+C) — v3.2";
         Object.assign(btnCroqui.style, {
             position: "fixed", bottom: "20px", right: "120px", zIndex: "999999",
             padding: "10px 14px", borderRadius: "8px", border: "2px solid #f9a825",
@@ -375,10 +375,24 @@
     // =========================
 
     function gerarCroqui(d) {
-        const isML     = d.plataforma === "ml";
-        const corCab   = isML ? "#1a1a1a"  : "#c0392b";   // cabeçalho
-        const corData    = isML ? "#FFD600" : "#c0392b";  // caixa data entrega
-        const corDataTxt = isML ? "#1a1a1a" : "#fff";
+        const isML      = d.plataforma === "ml";
+        const is2m      = d.doisMetros;
+
+        // Cores por combinação plataforma + modelo
+        // ML 2,80m  → amarelo/preto  | ML 2m     → verde/preto
+        // Shopee 2,80m → vermelho/branco | Shopee 2m → roxo claro/preto
+        const corCab     = isML ? "#FFD600"  : "#c0392b";
+        const corCabTxt  = isML ? "#1a1a1a"  : "#fff";
+        const corCliente = isML ? "#1565c0"  : "#1a1a1a";
+
+        // Data entrega
+        const corData    = isML ? "#FFD600"  : "#c0392b";
+        const corDataTxt = isML ? "#1a1a1a"  : "#fff";
+
+        // Tarja 2m
+        const corTarja    = "#1a1a1a"; // fundo sempre preto
+        const corTarjaTxt = isML ? "#00c853" : "#ce93d8"; // verde ML, roxo Shopee
+        const txtTarja    = isML ? "MODELO 2mts" : "MODELO 2mts";
 
         // Logos SVG inline — sem dependência externa
         const logoML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 60" style="height:56px;display:block">
@@ -431,12 +445,7 @@
         })();
 
         // Tarja 2 metros
-        const tarjaHTML = d.doisMetros ? `
-<div style="background:#1a1a1a;color:#f9a825;text-align:center;padding:6px 0;
-    font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:18px;
-    letter-spacing:3px;border-radius:0 0 4px 4px;margin-top:2px">
-    ★ BANNER 2 METROS ★
-</div>` : "";
+
 
         const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -477,8 +486,8 @@ body {
     gap: 5px;
 }
 .cab-design {
-    background: ${isML ? "#FFD600" : "#c0392b"};
-    color: ${isML ? "#1a1a1a" : "#fff"};
+    background: ${corCab};
+    color: ${corCabTxt};
     padding: 6px 14px;
     border-radius: 5px;
     display: flex;
@@ -486,7 +495,7 @@ body {
     gap: 6px;
 }
 .cab-design .rotulo {
-    color: ${isML ? "#555" : "#ffd7d0"};
+    color: ${isML ? (is2m ? "#444" : "#555") : "#ffd7d0"};
     font-size: 12px;
     font-weight: 600;
     letter-spacing: 1px;
@@ -496,8 +505,8 @@ body {
     font-size: 16px;
 }
 .cab-pasta {
-    background: ${isML ? "#FFD600" : "#c0392b"};
-    color: ${isML ? "#1a1a1a" : "#fff"};
+    background: ${corCab};
+    color: ${corCabTxt};
     padding: 6px 14px;
     border-radius: 5px;
     display: flex;
@@ -512,7 +521,7 @@ body {
 
 /* NOME CLIENTE */
 .cliente-bar {
-    background: ${isML ? "#1565c0" : "#1a1a1a"};
+    background: ${corCliente};
     border-radius: 5px;
     padding: 5px 14px;
     font-family: 'Oswald', sans-serif;
@@ -588,8 +597,9 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    max-height: 700px;
+    max-height: ${d.doisMetros ? "620px" : "700px"};
     overflow: hidden;
+    gap: 2px;
 }
 .banner-area {
     flex: 1;
@@ -599,7 +609,6 @@ body {
     position: relative;
     overflow: hidden;
     min-height: 0;
-    max-height: 700px;
 }
 
 /* RODAPÉ */
@@ -634,15 +643,18 @@ body {
 
 /* TARJA 2M */
 .tarja-2m {
-    background: #1a1a1a;
-    color: #f9a825;
+    background: ${corTarja};
+    color: ${corTarjaTxt};
     text-align: center;
-    padding: 7px 0;
+    padding: 14px 0;
     font-weight: 900;
-    font-size: 22px;
-    letter-spacing: 4px;
+    font-size: 42px;
+    font-style: italic;
+    letter-spacing: 6px;
     flex-shrink: 0;
-    border-radius: 0 0 4px 4px;
+    border-radius: 4px;
+    margin: 2px 0;
+    text-shadow: 2px 2px 0px rgba(0,0,0,0.4);
 }
 
 @media print {
@@ -682,7 +694,7 @@ body {
 
     <div class="banner-wrap">
         <div class="banner-area">${bannerHTML}</div>
-        ${d.doisMetros ? `<div class="tarja-2m">★&nbsp;&nbsp;BANNER 2 METROS&nbsp;&nbsp;★</div>` : ""}
+        ${d.doisMetros ? `<div class="tarja-2m">✦&nbsp;&nbsp;${txtTarja}&nbsp;&nbsp;✦</div>` : ""}
     </div>
 
     <div class="rodape">
