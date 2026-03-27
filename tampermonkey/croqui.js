@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello — Gerador de Croqui
 // @namespace    empresa-croqui
-// @version      3.4
+// @version      3.5
 // @description  Gera folha de croqui a partir do card aberto no Trello
 // @match        https://trello.com/b/*
 // @match        https://trello.com/c/*
@@ -616,7 +616,7 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    max-height: ${d.doisMetros ? "559px" : "665px"};
+    max-height: ${d.doisMetros ? "725px" : "750px"};
     overflow: hidden;
     gap: 2px;
 }
