@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello — Gerador de Croqui
 // @namespace    empresa-croqui
-// @version      3.5
+// @version      4.6
 // @description  Gera folha de croqui a partir do card aberto no Trello
 // @match        https://trello.com/b/*
 // @match        https://trello.com/c/*
@@ -82,23 +82,143 @@
         });
     }
 
+    // =========================
+    // PARSEAR DESCRIÇÃO DO CARD
+    // =========================
+
+    function parsearDescricao(desc) {
+        if (!desc || !desc.trim()) return null;
+
+        const resultado = {
+            dataPedido: "",
+            numeroPedido: "",
+            itens: [],
+            qtdTotal: 0,
+            spec: "",
+            doisMetros: false,
+            alertas: []
+        };
+
+        // Data e hora
+        // Tolerante a markdown bold (**Data:** ou Data:)
+        const mData = desc.match(/Data[*\s:]+(\d{1,2}\s+\w+\s+\d{2}:\d{2})/i);
+        if (mData) resultado.dataPedido = mData[1].trim();
+
+        // Número do pedido — ML (#123456789) ou Shopee (alfanumérico ex: 260328AAS1BWF6)
+        // Tolerante a markdown — "Pedido:" ou "**Pedido:**"
+        const mPedidoML     = desc.match(/Pedido[*\s:]+(#?\d{10,})/i);
+        // Shopee: "ID do Pedido:" ou "**ID do Pedido:**"
+        const mPedidoShopee = desc.match(/ID[*\s]+do[*\s]+Pedido[*:\s]+([A-Z0-9]{8,})/i);
+        if (mPedidoML)          resultado.numeroPedido = mPedidoML[1].trim();
+        else if (mPedidoShopee) resultado.numeroPedido = mPedidoShopee[1].trim();
+
+        // Palavras-chave que NÃO contêm banner para impressão
+        const SKU_SEM_BANNER = ["BASE", "PAINEL", "CAPA"];
+
+        function temBanner(nomeItem, sku) {
+            const upper = (nomeItem + " " + sku).toUpperCase();
+            return !SKU_SEM_BANNER.some(k => upper.includes(k));
+        }
+
+        function detectarTipoItem(nomeItem, sku) {
+            const upper = (nomeItem + " " + sku).toUpperCase();
+            if (SKU_SEM_BANNER.some(k => upper.includes(k))) {
+                // Detectar tipo de acessório
+                if (upper.includes("BASE"))   return "Base";
+                if (upper.includes("PAINEL")) return "Painel";
+                if (upper.includes("CAPA"))   return "Capa";
+                return "Acessório";
+            }
+            const lower = nomeItem.toLowerCase();
+            if (lower.includes("tecido"))   return "Tecido";
+            if (lower.includes("completo")) return "Completo";
+            return "Banner";
+        }
+
+        // Itens — pega linhas que começam com * ou bullet
+        const linhasItens = desc.split("\n").filter(l => l.trim().match(/^[*•-]\s+(?!TOTAL)/i));
+        let qtdBanners = 0;
+
+        linhasItens.forEach(linha => {
+            // Suporta ML: "| 1 unidade" e Shopee: "| x1"
+            const mItem = linha.match(/[*•-]\s+(.+?)\s*\|\s*SKU:\s*([^\|]+)\s*\|\s*[xX]?(\d+)(?:\s*unidade)?/i);
+            if (!mItem) return;
+
+            const nomeItem = mItem[1].trim();
+            const sku      = mItem[2].trim().replace(/[\[\]]/g, "").trim();
+            const qtd      = parseInt(mItem[3]);
+            const tipo     = detectarTipoItem(nomeItem, sku);
+            const comBanner = temBanner(nomeItem, sku);
+
+            // Só conta na quantidade se tiver banner
+            if (comBanner) qtdBanners += qtd;
+
+            // Detectar tamanho
+            let tamanho = "";
+            const mTamanho = nomeItem.match(/(\d+[,.]?\d*)\s*m(?:etros?)?/i);
+            if (mTamanho) {
+                const val = parseFloat(mTamanho[1].replace(",", "."));
+                tamanho = val <= 2.1 ? "2m" : "2,80m";
+            }
+
+            resultado.itens.push({ nome: nomeItem, sku, qtd, tipo, tamanho, comBanner });
+        });
+
+        resultado.qtdTotal = qtdBanners;
+
+        // Montar spec combinada
+        if (resultado.itens.length > 0) {
+            const grupos = {};
+            resultado.itens.forEach(item => {
+                grupos[item.tipo] = (grupos[item.tipo] || 0) + item.qtd;
+            });
+
+            const tiposUnicos = Object.keys(grupos);
+
+            if (tiposUnicos.length === 1) {
+                // Só um tipo — usa dropdown padrão se for Completo ou Tecido
+                resultado.spec = tiposUnicos[0]; // ex: "Completo" ou "Tecido"
+            } else {
+                // Tipos diferentes — monta string combinada para campo custom
+                const partes = Object.entries(grupos).map(([tipo, qtd]) =>
+                    qtd > 1 ? `${qtd}x ${tipo}` : `1 ${tipo}`
+                );
+                resultado.spec = partes.join(" + ");
+            }
+
+            // Detectar se é kit 2m — só completo 2m sem outros banners maiores
+            const itensComBanner = resultado.itens.filter(i => i.comBanner);
+            const temCompleto2m  = itensComBanner.some(i => i.tipo === "Completo" && i.tamanho === "2m");
+            const todosSao2m     = itensComBanner.every(i => i.tamanho === "2m");
+            resultado.doisMetros = temCompleto2m && todosSao2m;
+        }
+
+        return resultado;
+    }
+
     async function getDadosCard() {
         if (!getKey() || !getToken()) {
             alert("⚠️ Credenciais não encontradas. Use o script principal (⚙️) para cadastrá-las primeiro.");
             return null;
         }
         const shortLink = getShortLink();
-        if (!shortLink) return { nome: "", dataEntrega: "", plataforma: detectarPlataforma() };
+        if (!shortLink) return { nome: "", dataEntrega: "", plataforma: detectarPlataforma(), descParsed: null };
         try {
-            const card = await apiGet(`/cards/${shortLink}?fields=name,due`);
+            const card = await apiGet(`/cards/${shortLink}?fields=name,due,desc`);
             let dataEntrega = "";
             if (card.due) {
                 const d = new Date(card.due);
                 dataEntrega = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toLocaleDateString("pt-BR");
             }
-            return { nome: (card.name || "").trim(), dataEntrega, plataforma: detectarPlataforma() };
+            const descParsed = parsearDescricao(card.desc || "");
+            return {
+                nome: (card.name || "").trim(),
+                dataEntrega,
+                plataforma: detectarPlataforma(),
+                descParsed
+            };
         } catch {
-            return { nome: "", dataEntrega: "", plataforma: detectarPlataforma() };
+            return { nome: "", dataEntrega: "", plataforma: detectarPlataforma(), descParsed: null };
         }
     }
 
@@ -112,7 +232,7 @@
         const btnCroqui = document.createElement("button");
         btnCroqui.id = "btn-croqui";
         btnCroqui.innerText = "📄 Croqui";
-        btnCroqui.title = "Gerar Croqui (Alt+C) — v3.4";
+        btnCroqui.title = "Gerar Croqui (Alt+C) — v4.6";
         Object.assign(btnCroqui.style, {
             position: "fixed", bottom: "20px", right: "120px", zIndex: "999999",
             padding: "10px 14px", borderRadius: "8px", border: "2px solid #f9a825",
@@ -167,22 +287,52 @@
             overflowY: "auto", padding: "20px"
         });
 
+        const dp = dados.descParsed;
+
+        // Pré-preencher com dados da descrição
+        const specDetectada = dp?.spec || "";
+        const qtdDetectada  = dp?.qtdTotal || 1;
+        const doisMetrosAuto = dp?.doisMetros || false;
+        const dataPedido    = dp?.dataPedido || "";
+        const numPedido     = dp?.numeroPedido || "";
+        const alertas       = dp?.alertas || [];
+        const semDescricao  = !dp || (!dp.numeroPedido && !dp.dataPedido && dp.itens.length === 0);
+
         const designerOptions = designers.length > 0
             ? designers.map(d => `<option value="${d}">${d}</option>`).join("")
             : `<option value="">— cadastre via botão 👤 —</option>`;
 
-        const specOptions = SPECS_BASE.map(s => `<option value="${s}">${s}</option>`).join("")
-            + `<option value="__outro">Outro (digitar)...</option>`;
+        const specEhPadrao = SPECS_BASE.includes(specDetectada);
+        const specOptions = SPECS_BASE.map(s =>
+            `<option value="${s}" ${specDetectada === s ? "selected" : ""}>${s}</option>`
+        ).join("") + `<option value="__outro" ${!specEhPadrao && specDetectada ? "selected" : ""}>Outro (digitar)...</option>`;
 
         overlay.innerHTML = `
 <div style="background:#111;border:1px solid #333;border-radius:14px;padding:28px 32px;
     min-width:360px;max-width:440px;width:90%;color:#fff;font-family:'IBM Plex Mono',monospace;
     box-shadow:0 16px 48px rgba(0,0,0,0.8);margin:auto">
 
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${semDescricao || alertas.length > 0 ? "12px" : "22px"}">
         <h2 style="font-size:1rem;letter-spacing:2px;color:#f9a825">📄 GERAR CROQUI</h2>
         <button id="fechar-croqui" style="background:none;border:none;color:#666;font-size:18px;cursor:pointer">✕</button>
     </div>
+
+    ${semDescricao ? `
+    <div style="background:#2a1a00;border:1px solid #f9a825;border-radius:8px;padding:10px 14px;
+        margin-bottom:16px;font-size:12px;color:#f9a825">
+        ⚠️ Descrição do card sem especificações detectadas. Preencha os campos manualmente.
+    </div>` : ""}
+
+    ${alertas.map(a => `
+    <div style="background:#2a0000;border:1px solid #ef5350;border-radius:8px;padding:10px 14px;
+        margin-bottom:8px;font-size:12px;color:#ef5350">${a}</div>`).join("")}
+
+    ${dataPedido || numPedido ? `
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:8px 14px;
+        margin-bottom:12px;font-size:11px;color:#aaa;display:flex;gap:16px;flex-wrap:wrap">
+        ${numPedido ? `<span>📦 <strong style="color:#fff">${numPedido}</strong></span>` : ""}
+        ${dataPedido ? `<span>🕐 <strong style="color:#fff">${dataPedido}</strong></span>` : ""}
+    </div>` : ""}
 
     <div style="display:flex;flex-direction:column;gap:13px">
 
@@ -219,7 +369,7 @@
             </div>
             <div>
                 <label style="font-size:11px;color:#888;letter-spacing:1px">QUANTIDADE</label>
-                <input id="cq-qtd" type="number" value="1" min="1"
+                <input id="cq-qtd" type="number" value="${qtdDetectada}" min="1"
                     style="width:100%;background:#1e1e1e;border:1px solid #444;border-radius:8px;
                     padding:9px 12px;color:#fff;font-family:inherit;font-size:13px;margin-top:4px">
             </div>
@@ -234,8 +384,10 @@
                     ${specOptions}
                 </select>
                 <input id="cq-spec-custom" type="text" placeholder="descreva..."
+                    value="${!specEhPadrao && specDetectada ? specDetectada : ""}"
                     style="flex:1;background:#1e1e1e;border:1px solid #444;border-radius:8px;
-                    padding:9px 12px;color:#fff;font-family:inherit;font-size:13px;display:none">
+                    padding:9px 12px;color:#fff;font-family:inherit;font-size:13px;
+                    display:${!specEhPadrao && specDetectada ? "block" : "none"}">
             </div>
         </div>
 
@@ -263,9 +415,9 @@
 
         <div style="display:flex;align-items:center;gap:10px;background:#1e1e1e;
             border:1px solid #444;border-radius:8px;padding:10px 14px">
-            <input type="checkbox" id="cq-2m" style="width:16px;height:16px;cursor:pointer;accent-color:#f9a825">
+            <input type="checkbox" id="cq-2m" ${doisMetrosAuto ? "checked" : ""} style="width:16px;height:16px;cursor:pointer;accent-color:#f9a825">
             <label for="cq-2m" style="font-size:13px;color:#ddd;cursor:pointer;user-select:none">
-                Banner 2 Metros
+                Banner 2 Metros ${doisMetrosAuto ? '<span style="color:#00ff01;font-size:10px">(detectado)</span>' : ""}
             </label>
         </div>
 
@@ -360,7 +512,9 @@
                 doisMetros: document.getElementById("cq-2m").checked,
                 sedex:      document.getElementById("cq-sedex").checked,
                 sedexMotivo: document.getElementById("cq-sedex-motivo").value.trim(),
-                imagens:   _imagens
+                imagens:   _imagens,
+                numeroPedido: numPedido,
+                dataPedido:   dataPedido
             };
             if (!d.nome)     return alert("❌ Informe o nome do cliente.");
             if (!d.designer) return alert("❌ Selecione um designer.");
@@ -504,37 +658,61 @@ body {
     grid-template-columns: 1fr 1fr;
     gap: 5px;
 }
-.cab-design {
+.cab-esq {
     background: ${corCab};
     color: ${corCabTxt};
-    padding: 6px 14px;
+    padding: 5px 12px;
     border-radius: 5px;
     display: flex;
-    align-items: center;
-    gap: 6px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
 }
-.cab-design .rotulo {
-    color: ${isML ? (is2m ? "#444" : "#555") : "#ffd7d0"};
-    font-size: 12px;
+.cab-linha1 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.cab-designer-rotulo {
+    color: ${isML ? (is2m ? "#333" : "#555") : "rgba(255,255,255,0.6)"};
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: 1px;
+    white-space: nowrap;
 }
-.cab-design .valor {
+.cab-designer-valor {
     font-weight: 700;
-    font-size: 16px;
+    font-size: 15px;
+    line-height: 1.2;
+}
+.cab-separador {
+    color: ${isML ? "#999" : "rgba(255,255,255,0.4)"};
+    font-size: 11px;
+}
+.cab-data {
+    font-size: 13px;
+    font-weight: 700;
+    opacity: 0.85;
+    white-space: nowrap;
+}
+.cab-venda {
+    font-size: 13px;
+    font-weight: 700;
+    opacity: 0.9;
+    letter-spacing: 0.5px;
 }
 .cab-pasta {
     background: ${corCab};
     color: ${corCabTxt};
-    padding: 6px 14px;
+    padding: 5px 10px;
     border-radius: 5px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-family: 'Oswald', sans-serif;
     font-weight: 700;
-    font-size: 22px;
-    letter-spacing: 4px;
+    font-size: 18px;
+    letter-spacing: 3px;
     text-transform: uppercase;
 }
 
@@ -686,9 +864,13 @@ body {
 <div class="folha">
 
     <div class="cabecalho">
-        <div class="cab-design">
-            <span class="rotulo">DESIGN:</span>
-            <span class="valor">${d.designer.toUpperCase()}</span>
+        <div class="cab-esq">
+            <div class="cab-linha1">
+                <span class="cab-designer-rotulo">DESIGN:</span>
+                <span class="cab-designer-valor">${d.designer.toUpperCase()}</span>
+                ${d.dataPedido ? `<span class="cab-separador">·</span><span class="cab-data">${d.dataPedido}</span>` : ""}
+            </div>
+            <span class="cab-venda">Venda: ${d.numeroPedido || "—"}</span>
         </div>
         <div class="cab-pasta">PASTA DO CLIENTE</div>
     </div>
