@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello — Gerador de Croqui
 // @namespace    empresa-croqui
-// @version      4.6
+// @version      5.5
 // @description  Gera folha de croqui a partir do card aberto no Trello
 // @match        https://trello.com/b/*
 // @match        https://trello.com/c/*
@@ -232,7 +232,7 @@
         const btnCroqui = document.createElement("button");
         btnCroqui.id = "btn-croqui";
         btnCroqui.innerText = "📄 Croqui";
-        btnCroqui.title = "Gerar Croqui (Alt+C) — v4.6";
+        btnCroqui.title = "Gerar Croqui (Alt+C) — v5.5";
         Object.assign(btnCroqui.style, {
             position: "fixed", bottom: "20px", right: "120px", zIndex: "999999",
             padding: "10px 14px", borderRadius: "8px", border: "2px solid #f9a825",
@@ -568,21 +568,9 @@
         const txtTarja    = "MODELO 2mts";
 
         // Logos SVG inline — sem dependência externa
-        const logoML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 60" style="height:56px;display:block">
-  <rect width="220" height="60" rx="8" fill="#FFE600"/>
-  <ellipse cx="38" cy="30" rx="20" ry="20" fill="none" stroke="#2d3277" stroke-width="3"/>
-  <path d="M22 30 Q27 20 38 30 Q49 40 54 30" fill="none" stroke="#2d3277" stroke-width="3.5" stroke-linecap="round"/>
-  <text x="130" y="22" font-family="Arial Black,Arial" font-weight="900" font-size="14" fill="#2d3277" text-anchor="middle">mercado</text>
-  <text x="130" y="42" font-family="Arial Black,Arial" font-weight="900" font-size="14" fill="#2d3277" text-anchor="middle">livre</text>
-</svg>`;
+        const logoML = `<img src="https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/main/assets/ml-logo.svg" style="height:80px;width:auto;display:block;object-fit:contain">`;;;;;;;
 
-        const logoShopee = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 60" style="height:56px;display:block">
-  <rect width="220" height="60" rx="8" fill="#EE4D2D"/>
-  <path d="M 28,10 C 28,6 31,4 35,4 C 39,4 42,6 42,10 C 42,10 44,9 46,10 C 48,11 48,13 46,14 L 24,14 C 22,13 22,11 24,10 C 26,9 28,10 28,10 Z" fill="#fff" opacity="0.9"/>
-  <rect x="22" y="15" width="26" height="30" rx="3" fill="#fff" opacity="0.15"/>
-  <text x="22" y="28" font-family="Arial Black,Arial" font-weight="900" font-size="11" fill="#fff">shopee</text>
-  <text x="60" y="38" font-family="Arial Black,Arial" font-weight="900" font-size="22" fill="#fff" text-anchor="start">shopee</text>
-</svg>`;
+        const logoShopee = `<img src="https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/main/assets/shopee-logo.svg" style="height:80px;width:auto;display:block;object-fit:contain">`;;;;;;
 
         const logo = isML ? logoML : logoShopee;
 
@@ -857,6 +845,13 @@ body {
 @media print {
     body  { background: none; padding: 0; }
     .folha { box-shadow: none; }
+}
+
+/* Forçar impressão de cores de fundo em todos os navegadores */
+* {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
 }
 </style>
 </head>
