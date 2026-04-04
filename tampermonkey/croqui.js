@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello — Gerador de Croqui
 // @namespace    empresa-croqui
-// @version      5.9
+// @version      6.1
 // @description  Gera folha de croqui a partir do card aberto no Trello
 // @match        https://trello.com/b/*
 // @match        https://trello.com/c/*
@@ -135,7 +135,7 @@
             const lower = nomeItem.toLowerCase();
             if (lower.includes("tecido"))   return "Tecido";
             if (lower.includes("completo")) return "Completo";
-            return "Banner";
+            return "Completo"; // padrão — se não tem tecido no nome, é completo
         }
 
         // Itens — pega linhas que começam com * ou bullet
@@ -166,6 +166,32 @@
 
             resultado.itens.push({ nome: nomeItem, sku, qtd, tipo, tamanho, comBanner });
         });
+
+        // Se não achou itens no formato ML/Shopee, tenta parser de tráfego (texto livre)
+        if (resultado.itens.length === 0 && desc.trim().length > 0) {
+            const lower = desc.toLowerCase();
+
+            // Quantidade
+            const mQtd = desc.match(/(\d+)\s*unidade/i) || desc.match(/^(\d+)\s/m);
+            const qtd = mQtd ? parseInt(mQtd[1]) : 1;
+
+            // Tipo
+            let tipo = "Completo";
+            if (lower.includes("tecido")) tipo = "Tecido";
+
+            // Tamanho — 2m ou 2,80m
+            let doisMetros = false;
+            const mTam = desc.match(/(\d+[,.]?\d*)\s*m(?:etros?)?/i);
+            if (mTam) {
+                const val = parseFloat(mTam[1].replace(",", "."));
+                if (val <= 2.1) doisMetros = true;
+            }
+
+            resultado.itens.push({ nome: desc.trim(), sku: "", qtd, tipo, tamanho: doisMetros ? "2m" : "2,80m", comBanner: true });
+            qtdBanners = qtd;
+            resultado.spec = tipo;
+            resultado.doisMetros = doisMetros;
+        }
 
         resultado.qtdTotal = qtdBanners;
 
@@ -235,7 +261,7 @@
         const btnCroqui = document.createElement("button");
         btnCroqui.id = "btn-croqui";
         btnCroqui.innerText = "📄 Croqui";
-        btnCroqui.title = "Gerar Croqui (Alt+C) — v5.9";
+        btnCroqui.title = "Gerar Croqui (Alt+C) — v6.1";
         Object.assign(btnCroqui.style, {
             position: "fixed", bottom: "20px", right: "120px", zIndex: "999999",
             padding: "10px 14px", borderRadius: "8px", border: "2px solid #f9a825",
