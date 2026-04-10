@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Scripts Empresa (Unificado)
 // @namespace    empresa
-// @version      4.9
+// @version      5.0
 // @description  Automações Trello
 // @match        https://trello.com/b/*
 // @grant        GM_xmlhttpRequest
@@ -13,12 +13,15 @@
     'use strict';
 
     // =========================
-    // CHANGELOG — edite aqui ao atualizar
+    // CHANGELOG — edite aqui ao atualizar!
     // =========================
 
-    const VERSAO_ATUAL = "4.9";
+    const VERSAO_ATUAL = "5.0";
 
     const CHANGELOG = {
+        "5.0": [
+            "Métricas: Alterações 1-20 e Desenvolvimento 1-20 adicionados (ML e Shopee)",
+        ],
         "4.9": [
             "Versão sincronizada automaticamente em todos os lugares",
             "Histórico de listas recentes no Abrir Chats ML",
@@ -91,18 +94,18 @@
             <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:5px">
                 ${linhas.map(l => `<li style="color:#ccc">• ${l}</li>`).join("")}
             </ul>
-            <div style="margin-top:12px;color:#444;font-size:10px">Some em 12s · não aparece novamente</div>
+            <div style="margin-top:12px;color:#444;font-size:10px">Some em 8s · não aparece novamente</div>
         `;
 
         document.body.appendChild(notif);
 
         document.getElementById("fechar-changelog").onclick = () => notif.remove();
 
-        // Some automaticamente em 12 segundos
+        // Some automaticamente em 8 segundos
         setTimeout(() => {
             notif.style.opacity = "0";
             setTimeout(() => notif.remove(), 400);
-        }, 12000);
+        }, 8000);
     }
 
     // =========================
@@ -134,18 +137,26 @@
     const LISTAS_SHOPEE = {
         SEM_INFO:     ["INICIAL 🟢", "FALTA INFORMAÇÕES"],
         DESENVOLVIMENTO: ["AÇÕES", "DESENVOLVIMENTO  🔶",
-            ...Array.from({ length: 15 }, (_, i) => `Desenvolvimento ${i + 1}`)],
+            ...Array.from({ length: 15 }, (_, i) => `Desenvolvimento ${i + 1}`),
+            ...Array.from({ length: 20 }, (_, i) => `Desenvolvimento ${i + 1}`),
+            ...Array.from({ length: 20 }, (_, i) => `DESENVOLVIMENTO ${i + 1}`)],
         AGUARDANDO:   ["AGUARDANDO APROVAÇÃO ⚫", "AGUARDANDO APROVAÇÃO DA ALTERAÇÃO ⚫"],
-        ALTERACAO:    ["ALTERAÇÃO 2", "ALTERAÇÃO  VITOR", "ALTERAÇÕES 1", "CORREÇÃO"]
+        ALTERACAO:    ["ALTERAÇÃO 2", "ALTERAÇÃO  VITOR", "ALTERAÇÕES 1", "CORREÇÃO",
+            ...Array.from({ length: 20 }, (_, i) => `Alterações ${i + 1}`),
+            ...Array.from({ length: 20 }, (_, i) => `ALTERAÇÕES ${i + 1}`)]
     };
 
     const LISTAS_ML = {
         SEM_INFO:     ["PROBLEMAS/RECLAMAÇÕES", "FALTA INFORMAÇÕES", "INICIAL"],
         DESENVOLVIMENTO: ["AÇÕES", "EM DESENVOLVIMENTO", "DESENVOLVIMENTO MAÍSA",
             "DESENVOLVIMENTO FELIPE", "DESENVOLVIMENTO LARIANY",
-            "DESENVOLVIMENTO TATI", "DESENVOLVIMENTO SIANNE", "DESENVOLVIMENTO RODRIGO"],
+            "DESENVOLVIMENTO TATI", "DESENVOLVIMENTO SIANNE", "DESENVOLVIMENTO RODRIGO",
+            ...Array.from({ length: 20 }, (_, i) => `Desenvolvimento ${i + 1}`),
+            ...Array.from({ length: 20 }, (_, i) => `DESENVOLVIMENTO ${i + 1}`)],
         AGUARDANDO:   ["AGUARDANDO APROVAÇÃO", "AGUARDANDO APROVAÇÃO DA ALTERAÇÃO"],
-        ALTERACAO:    ["ALTERAÇÕES", "ALTERAÇÕES 4", "ALTERAÇÃO VITOR", "ALTERAÇÕES 5", "CORREÇÃO"]
+        ALTERACAO:    ["ALTERAÇÕES", "ALTERAÇÕES 4", "ALTERAÇÃO VITOR", "ALTERAÇÕES 5", "CORREÇÃO",
+            ...Array.from({ length: 20 }, (_, i) => `Alterações ${i + 1}`),
+            ...Array.from({ length: 20 }, (_, i) => `ALTERAÇÕES ${i + 1}`)]
     };
 
     const DIAS_SEMANA = ["DOMINGO","SEGUNDA","TERÇA","QUARTA","QUINTA","SEXTA","SÁBADO"];
