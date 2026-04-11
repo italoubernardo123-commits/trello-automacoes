@@ -2,9 +2,11 @@
 // @name         Vendas → Trello (ML + Shopee)
 // @namespace    vendas-trello
 // @version      1.2
-// @match        https://www.mercadolivre.com.br/vendas/*
+// @match        https://www.mercadolivre.com.br/*
+// @match        https://www.mercadolibre.com.br/*
 // @match        https://seller.shopee.com.br/*
-// @grant        none
+// @grant        GM_setValue
+// @grant        GM_getValue
 // @updateURL    https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/main/tampermonkey/trello-sync.js
 // @downloadURL  https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/main/tampermonkey/trello-sync.js
 // ==/UserScript==
@@ -12,23 +14,133 @@
 (function () {
   'use strict';
 
-  // ─── Configuração ─────────────────────────────────────────────
-  function promptAndSave(key, msg) {
-    const val = prompt(msg);
-    if (val) localStorage.setItem(key, val.trim());
-    return val ? val.trim() : '';
+  // ─── Credenciais (salvas localmente no Tampermonkey) ─────────
+  function getCreds() {
+    return {
+      API_KEY:         GM_getValue('API_KEY', ''),
+      API_TOKEN:       GM_getValue('API_TOKEN', ''),
+      LABEL_RECLAM:    GM_getValue('LABEL_RECLAM', ''),
+      LABEL_MAIS:      GM_getValue('LABEL_MAIS', ''),
+      BOARD_ID_ML:     GM_getValue('BOARD_ID_ML', ''),
+      BOARD_ID_SHOPEE: GM_getValue('BOARD_ID_SHOPEE', ''),
+    };
   }
 
-  const API_KEY   = localStorage.getItem('trello_api_key')   || promptAndSave('trello_api_key',   'Trello API Key:');
-  const API_TOKEN = localStorage.getItem('trello_api_token') || promptAndSave('trello_api_token', 'Trello API Token:');
-  const LABEL_RECLAM   = "666b314804edc2598667f69c"; // Problema/Reclamação (red) — board ML
-  const LABEL_MAIS     = "681901335bddd9432f359483"; // Mais compras (blue) — ambos boards
+  function credsFaltando(c) {
+    return !c.API_KEY || !c.API_TOKEN || !c.BOARD_ID_ML || !c.BOARD_ID_SHOPEE;
+  }
+
+  function mostrarSetup(aoSalvar) {
+    document.getElementById('__vt_setup__')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = '__vt_setup__';
+    Object.assign(overlay.style, {
+      position: 'fixed', inset: '0', zIndex: '999999',
+      background: 'rgba(0,0,0,0.7)', display: 'flex',
+      alignItems: 'center', justifyContent: 'center',
+    });
+
+    const box = document.createElement('div');
+    Object.assign(box.style, {
+      background: '#111', border: '1px solid #333', borderRadius: '16px',
+      padding: '28px 32px', width: '420px', fontFamily: 'monospace',
+      fontSize: '13px', color: '#f0f0f0', boxShadow: '0 8px 40px rgba(0,0,0,.9)',
+    });
+
+    const titulo = document.createElement('div');
+    titulo.textContent = '⚙️ Configuração — Vendas → Trello';
+    Object.assign(titulo.style, { fontWeight: 'bold', fontSize: '15px', marginBottom: '6px', color: '#ffe000' });
+    box.appendChild(titulo);
+
+    const sub = document.createElement('div');
+    sub.textContent = 'Preencha uma vez. Fica salvo só no seu Tampermonkey.';
+    Object.assign(sub.style, { color: '#666', fontSize: '11px', marginBottom: '20px' });
+    box.appendChild(sub);
+
+    const creds = getCreds();
+
+    const campos = [
+      { key: 'API_KEY',         label: 'Trello API Key',             placeholder: '32 caracteres',  hint: 'Acesse trello.com/power-ups/admin' },
+      { key: 'API_TOKEN',       label: 'Trello Token',               placeholder: '64 caracteres',  hint: 'Gerado na mesma página da API Key' },
+      { key: 'BOARD_ID_ML',     label: 'Board ID — Mercado Livre',   placeholder: 'ex: oCfs01Yk',   hint: 'URL do quadro: trello.com/b/oCfs01Yk/nome' },
+      { key: 'BOARD_ID_SHOPEE', label: 'Board ID — Shopee',          placeholder: 'ex: fvvPPcP3',   hint: 'URL do quadro: trello.com/b/fvvPPcP3/nome' },
+      { key: 'LABEL_RECLAM',    label: 'ID Etiqueta Reclamação (ML)', placeholder: 'ID hexadecimal', hint: 'Opcional. Cole o ID, não o nome' },
+      { key: 'LABEL_MAIS',      label: 'ID Etiqueta Mais Compras',   placeholder: 'ID hexadecimal', hint: 'Opcional. Cole o ID, não o nome' },
+    ];
+
+    const inputs = {};
+    campos.forEach(({ key, label, placeholder, hint }) => {
+      const lbl = document.createElement('div');
+      lbl.textContent = label;
+      Object.assign(lbl.style, { fontSize: '10px', color: '#888', letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: '5px' });
+      box.appendChild(lbl);
+
+      const inp = document.createElement('input');
+      inp.type = key.includes('TOKEN') ? 'password' : 'text';
+      inp.placeholder = placeholder;
+      inp.value = creds[key] || '';
+      Object.assign(inp.style, {
+        width: '100%', padding: '9px 12px', background: '#1a1a1a',
+        border: '1px solid #333', borderRadius: '7px', color: '#fff',
+        fontFamily: 'monospace', fontSize: '12px', marginBottom: '12px',
+        outline: 'none', boxSizing: 'border-box',
+      });
+      box.appendChild(inp);
+      if (hint) {
+        const h = document.createElement('div');
+        h.textContent = '→ ' + hint;
+        Object.assign(h.style, { fontSize: '10px', color: '#555', marginTop: '-8px', marginBottom: '12px', fontFamily: 'monospace' });
+        box.appendChild(h);
+      }
+      inputs[key] = inp;
+    });
+
+    const btnRow = document.createElement('div');
+    Object.assign(btnRow.style, { display: 'flex', gap: '10px', marginTop: '4px' });
+
+    const btnSalvar = document.createElement('button');
+    btnSalvar.textContent = '💾 Salvar';
+    Object.assign(btnSalvar.style, {
+      flex: '1', padding: '11px', background: '#ffe000', border: 'none',
+      borderRadius: '7px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', fontSize: '13px',
+    });
+    btnSalvar.addEventListener('click', () => {
+      const ok = inputs.API_KEY.value.trim() && inputs.API_TOKEN.value.trim() &&
+                 inputs.BOARD_ID_ML.value.trim() && inputs.BOARD_ID_SHOPEE.value.trim();
+      if (!ok) {
+        inputs.API_KEY.style.borderColor = !inputs.API_KEY.value.trim() ? '#f87171' : '#333';
+        inputs.API_TOKEN.style.borderColor = !inputs.API_TOKEN.value.trim() ? '#f87171' : '#333';
+        inputs.BOARD_ID_ML.style.borderColor = !inputs.BOARD_ID_ML.value.trim() ? '#f87171' : '#333';
+        inputs.BOARD_ID_SHOPEE.style.borderColor = !inputs.BOARD_ID_SHOPEE.value.trim() ? '#f87171' : '#333';
+        return;
+      }
+      Object.keys(inputs).forEach(key => GM_setValue(key, inputs[key].value.trim()));
+      overlay.remove();
+      if (aoSalvar) aoSalvar();
+    });
+    btnRow.appendChild(btnSalvar);
+
+    const btnFechar = document.createElement('button');
+    btnFechar.textContent = 'Fechar';
+    Object.assign(btnFechar.style, {
+      padding: '11px 18px', background: 'transparent', border: '1px solid #333',
+      borderRadius: '7px', color: '#666', cursor: 'pointer', fontFamily: 'monospace', fontSize: '13px',
+    });
+    btnFechar.addEventListener('click', () => overlay.remove());
+    btnRow.appendChild(btnFechar);
+
+    box.appendChild(btnRow);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  }
+  // ──────────────────────────────────────────────────────────────
 
   const PLATAFORMA = location.hostname.includes('shopee') ? 'shopee' : 'ml';
 
   const CFG = {
     ml: {
-      BOARD_ID:      'oCfs01Yk',
+      get BOARD_ID()  { return getCreds().BOARD_ID_ML; },
       FILTRO_LISTAS: l => l.name.toLowerCase().includes('comprou'),
       BTN_COR:       '#ffe000',
       BTN_TEXTO_COR: '#000',
@@ -36,7 +148,7 @@
       LABEL:         'ML → Trello',
     },
     shopee: {
-      BOARD_ID:      'fvvPPcP3',
+      get BOARD_ID()  { return getCreds().BOARD_ID_SHOPEE; },
       FILTRO_LISTAS: l => ['comprou','entregar','entragar'].some(f => l.name.toLowerCase().includes(f)),
       BTN_COR:       '#ee4d2d',
       BTN_TEXTO_COR: '#fff',
@@ -104,6 +216,7 @@
 
   // ─── Trello API ───────────────────────────────────────────────
   async function getTrelloCards() {
+    const { API_KEY, API_TOKEN } = getCreds();
     const res = await fetch(
       `https://api.trello.com/1/boards/${cfg.BOARD_ID}/cards?fields=name,desc&key=${API_KEY}&token=${API_TOKEN}`
     );
@@ -131,6 +244,7 @@
   }
 
   async function getListas() {
+    const { API_KEY, API_TOKEN } = getCreds();
     const res = await fetch(
       `https://api.trello.com/1/boards/${cfg.BOARD_ID}/lists?key=${API_KEY}&token=${API_TOKEN}`
     );
@@ -139,9 +253,10 @@
   }
 
   async function criarCard(p, listId) {
+    const { API_KEY, API_TOKEN, LABEL_RECLAM, LABEL_MAIS } = getCreds();
     const labels = [];
-    if (p.isReclamacao && PLATAFORMA === 'ml') labels.push(LABEL_RECLAM);
-    if (p.maisCompras) labels.push(LABEL_MAIS);
+    if (p.isReclamacao && PLATAFORMA === 'ml' && LABEL_RECLAM) labels.push(LABEL_RECLAM);
+    if (p.maisCompras && LABEL_MAIS) labels.push(LABEL_MAIS);
 
     const body = { name: p.nome, desc: p.desc, idList: listId };
     if (p.dueDate)     body.due      = p.dueDate;
@@ -378,6 +493,12 @@
 
   // ─── Roda ─────────────────────────────────────────────────────
   async function rodar() {
+    const creds = getCreds();
+    if (credsFaltando(creds)) {
+      mostrarSetup(() => rodar());
+      return;
+    }
+
     if (PLATAFORMA === 'ml') {
       showLoading('Expandindo pacotes...');
       await mlExpandirPacotes();
@@ -410,18 +531,38 @@
   // ─── Botão ────────────────────────────────────────────────────
   function adicionarBotao() {
     if (document.getElementById(BTN_ID)) return;
+
+    const wrap = document.createElement('div');
+    wrap.id = BTN_ID + '_wrap';
+    Object.assign(wrap.style, {
+      position: 'fixed', bottom: '20px', left: '20px', zIndex: '99999',
+      display: 'flex', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', borderRadius: '10px',
+    });
+
     const btn = document.createElement('button');
     btn.id = BTN_ID;
     btn.textContent = `📋 ${cfg.LABEL}`;
     Object.assign(btn.style, {
-      position: 'fixed', bottom: '20px', left: '20px', zIndex: '99999',
       background: cfg.BTN_COR, color: cfg.BTN_TEXTO_COR,
-      border: 'none', borderRadius: '10px', padding: '12px 18px',
-      fontFamily: 'monospace', fontSize: '13px', fontWeight: 'bold',
-      cursor: 'pointer', boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+      border: 'none', borderRadius: '10px 0 0 10px', padding: '12px 18px',
+      fontFamily: 'monospace', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer',
     });
     btn.addEventListener('click', rodar);
-    document.body.appendChild(btn);
+    wrap.appendChild(btn);
+
+    const btnCfg = document.createElement('button');
+    btnCfg.id = BTN_ID + '_cfg';
+    btnCfg.textContent = '⚙️';
+    Object.assign(btnCfg.style, {
+      background: '#333', color: '#fff',
+      border: 'none', borderLeft: '1px solid #555',
+      borderRadius: '0 10px 10px 0', padding: '12px 10px',
+      fontFamily: 'monospace', fontSize: '13px', cursor: 'pointer',
+    });
+    btnCfg.addEventListener('click', () => mostrarSetup(null));
+    wrap.appendChild(btnCfg);
+
+    document.body.appendChild(wrap);
   }
 
   function init() {
