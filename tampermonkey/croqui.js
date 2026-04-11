@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello — Gerador de Croqui
 // @namespace    empresa-croqui
-// @version      6.1
+// @version      6.2
 // @description  Gera folha de croqui a partir do card aberto no Trello
 // @match        https://trello.com/b/*
 // @match        https://trello.com/c/*
@@ -116,20 +116,20 @@
         else if (mPedidoShopee) resultado.numeroPedido = mPedidoShopee[1].trim();
 
         // Palavras-chave que NÃO contêm banner para impressão
+        // Verifica APENAS pelo SKU — nome do produto pode conter "base", "painel" etc sem ser acessório
         const SKU_SEM_BANNER = ["BASE", "PAINEL", "CAPA"];
 
         function temBanner(nomeItem, sku) {
-            const upper = (nomeItem + " " + sku).toUpperCase();
-            return !SKU_SEM_BANNER.some(k => upper.includes(k));
+            const skuUpper = sku.toUpperCase();
+            return !SKU_SEM_BANNER.some(k => skuUpper.includes(k));
         }
 
         function detectarTipoItem(nomeItem, sku) {
-            const upper = (nomeItem + " " + sku).toUpperCase();
-            if (SKU_SEM_BANNER.some(k => upper.includes(k))) {
-                // Detectar tipo de acessório
-                if (upper.includes("BASE"))   return "Base";
-                if (upper.includes("PAINEL")) return "Painel";
-                if (upper.includes("CAPA"))   return "Capa";
+            const skuUpper = sku.toUpperCase();
+            if (SKU_SEM_BANNER.some(k => skuUpper.includes(k))) {
+                if (skuUpper.includes("BASE"))   return "Base";
+                if (skuUpper.includes("PAINEL")) return "Painel";
+                if (skuUpper.includes("CAPA"))   return "Capa";
                 return "Acessório";
             }
             const lower = nomeItem.toLowerCase();
@@ -261,7 +261,7 @@
         const btnCroqui = document.createElement("button");
         btnCroqui.id = "btn-croqui";
         btnCroqui.innerText = "📄 Croqui";
-        btnCroqui.title = "Gerar Croqui (Alt+C) — v6.1";
+        btnCroqui.title = "Gerar Croqui (Alt+C) — v6.2";
         Object.assign(btnCroqui.style, {
             position: "fixed", bottom: "20px", right: "120px", zIndex: "999999",
             padding: "10px 14px", borderRadius: "8px", border: "2px solid #f9a825",
