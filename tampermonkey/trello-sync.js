@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Vendas → Trello (ML + Shopee)
 // @namespace    vendas-trello
-// @version      1.1
+// @version      1.2
 // @match        https://www.mercadolivre.com.br/vendas/*
 // @match        https://seller.shopee.com.br/*
 // @grant        none
@@ -13,8 +13,14 @@
   'use strict';
 
   // ─── Configuração ─────────────────────────────────────────────
-  const API_KEY        = ""; // Insira sua API Key do Trello
-  const API_TOKEN      = ""; // Insira seu API Token do Trello
+  function promptAndSave(key, msg) {
+    const val = prompt(msg);
+    if (val) localStorage.setItem(key, val.trim());
+    return val ? val.trim() : '';
+  }
+
+  const API_KEY   = localStorage.getItem('trello_api_key')   || promptAndSave('trello_api_key',   'Trello API Key:');
+  const API_TOKEN = localStorage.getItem('trello_api_token') || promptAndSave('trello_api_token', 'Trello API Token:');
   const LABEL_RECLAM   = "666b314804edc2598667f69c"; // Problema/Reclamação (red) — board ML
   const LABEL_MAIS     = "681901335bddd9432f359483"; // Mais compras (blue) — ambos boards
 
