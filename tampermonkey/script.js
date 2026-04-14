@@ -15,7 +15,7 @@
     // =========================
     // CHANGELOG — edite aqui ao atualizar!
     // =========================
-
+ 
     const VERSAO_ATUAL = "5.0";
 
     const CHANGELOG = {

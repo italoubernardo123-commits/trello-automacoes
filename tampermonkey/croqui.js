@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello — Gerador de Croqui
 // @namespace    empresa-croqui
-// @version      6.2
+// @version      6.3
 // @description  Gera folha de croqui a partir do card aberto no Trello
 // @match        https://trello.com/b/*
 // @match        https://trello.com/c/*
@@ -261,7 +261,7 @@
         const btnCroqui = document.createElement("button");
         btnCroqui.id = "btn-croqui";
         btnCroqui.innerText = "📄 Croqui";
-        btnCroqui.title = "Gerar Croqui (Alt+C) — v6.2";
+        btnCroqui.title = "Gerar Croqui (Alt+C) — v6.3";
         Object.assign(btnCroqui.style, {
             position: "fixed", bottom: "20px", right: "120px", zIndex: "999999",
             padding: "10px 14px", borderRadius: "8px", border: "2px solid #f9a825",
@@ -451,6 +451,12 @@
             </label>
         </div>
 
+        <div id="cq-balcao-wrap" style="display:${dados.plataforma === 'trafego' ? 'flex' : 'none'};align-items:center;gap:10px;background:#1e1e1e;
+            border:1px solid #4fc3f7;border-radius:8px;padding:10px 14px">
+            <input type="checkbox" id="cq-balcao" style="width:16px;height:16px;cursor:pointer;accent-color:#4fc3f7">
+            <label for="cq-balcao" style="font-size:13px;color:#ddd;cursor:pointer;user-select:none">Balcão</label>
+        </div>
+
         <div>
             <label style="font-size:11px;color:#888;letter-spacing:1px">IMAGENS DO BANNER (opcional — múltiplas)</label>
             <div id="cq-drop-area"
@@ -524,6 +530,16 @@
         dropArea.ondragleave = ()  => dropArea.style.borderColor = "#444";
         dropArea.ondrop      = e  => { e.preventDefault(); dropArea.style.borderColor = "#444"; lerArquivos(e.dataTransfer.files); };
 
+        // Mostrar checkbox balcão só quando tráfego selecionado
+        document.getElementById("cq-plat").onchange = function() {
+            const wrap = document.getElementById("cq-balcao-wrap");
+            if (wrap) wrap.style.display = this.value === "trafego" ? "flex" : "none";
+            if (this.value !== "trafego") {
+                const cb = document.getElementById("cq-balcao");
+                if (cb) cb.checked = false;
+            }
+        };
+
         document.getElementById("fechar-croqui").onclick = () => overlay.remove();
         overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
 
@@ -540,6 +556,7 @@
                 spec,
                 plataforma: document.getElementById("cq-plat").value,
                 doisMetros: document.getElementById("cq-2m").checked,
+                balcao:     document.getElementById("cq-balcao")?.checked || false,
                 sedex:      document.getElementById("cq-sedex").checked,
                 sedexMotivo: document.getElementById("cq-sedex-motivo").value.trim(),
                 imagens:   _imagens,
@@ -612,7 +629,7 @@
 
         const logo = isTrafego
             ? `<div style="font-family:'Oswald',sans-serif;font-weight:700;font-size:22px;
-                color:#4fc3f7;letter-spacing:4px">TRÁFEGO</div>`
+                color:${d.balcao ? "#1a1a1a" : "#4fc3f7"};letter-spacing:4px">${d.balcao ? "BALCÃO" : "TRÁFEGO"}</div>`
             : (isML ? logoML : logoShopee);
 
         // Grid de imagens — todas embutidas como base64, nunca vaza da área
@@ -933,8 +950,8 @@ body {
     <div class="banner-wrap">
         ${isTrafego ? `<div style="
             font-family:'Oswald',sans-serif;font-weight:900;font-size:52px;
-            color:#4fc3f7;letter-spacing:6px;padding:4px 10px;
-            text-align:left;line-height:1;flex-shrink:0">TRÁFEGO</div>` : ""}
+            color:${d.balcao ? "#1a1a1a" : "#4fc3f7"};letter-spacing:6px;padding:4px 10px;
+            text-align:left;line-height:1;flex-shrink:0">${d.balcao ? "BALCÃO" : "TRÁFEGO"}</div>` : ""}
         <div class="banner-area">${bannerHTML}</div>
         ${d.doisMetros ? `<div class="tarja-2m">${txtTarja}</div>` : ""}
     </div>
