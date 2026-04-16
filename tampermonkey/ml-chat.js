@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ML — Painel de Atendimento
 // @namespace    empresa-ml-chat
-// @version      3.1
+// @version      3.3
 // @description  Painel de ações no chat do cliente ML
 // @match        https://www.mercadolivre.com.br/vendas/*/mensagens*
 // @grant        GM_xmlhttpRequest
@@ -28,6 +28,8 @@
     const LISTA_AGUARDANDO      = "AGUARDANDO APROVAÇÃO";
     const LISTA_AGUARDANDO_ALT  = "AGUARDANDO APROVAÇÃO DA ALTERAÇÃO";
     const LISTA_CORRECAO        = "CORREÇÃO";
+    const LISTA_CONFERINDO      = "CONFERINDO";       // v3.2
+    const LISTA_FINALIZADO      = "FINALIZADO";        // v3.2
 
     // Nomes das etiquetas no Trello (case insensitive)
     const ETIQUETA_SEM_LOGO     = "sem logo";
@@ -76,7 +78,27 @@
         "EXPORTANDO 02",
         "EXPORTANDO RODRIGO",
         "EXPORTANDO TATI",
-        // Adicione outras listas de exportação aqui
+    ];
+
+    // ── Listas consideradas "FAZENDO CROQUI" ──
+    const LISTAS_FAZENDO_CROQUI = [
+        "FAZENDO CROQUI VITO",
+        "FAZENDO CROQUI SOPHIE",
+        "FAZENDO CROQUI TATI",
+        "CROQUI PRONTO",
+        "CROQUI PRONTO ( TATI )",
+        ...Array.from({ length: 10 }, (_, i) => `FAZENDO CROQUI ${i + 1}`),
+    ];
+
+    // ── Listas consideradas "CONFERINDO" ──
+    const LISTAS_CONFERINDO = [
+        "CONFERINDO",
+    ];
+
+    // ── Listas consideradas "FINALIZADO" ──
+    const LISTAS_FINALIZADO = [
+        "FINALIZADO",
+        "FINALIZADO ✅🎨",
     ];
 
     // ============================================================
@@ -169,7 +191,7 @@
             <div style="background:#1a1a1a;border:1px solid #ef6c00;border-radius:12px;
                 padding:20px 24px;max-width:300px;font-family:'IBM Plex Mono',monospace;color:#fff;font-size:12px">
                 <div style="color:#ef6c00;font-weight:bold;margin-bottom:10px;font-size:13px">${titulo}</div>
-                <div style="color:#aaa;margin-bottom:16px;line-height:1.5">${mensagem}</div>
+                <div style="color:#ccc;margin-bottom:16px;line-height:1.5">${mensagem}</div>
                 <div style="display:flex;gap:8px;justify-content:flex-end">
                     <button id="conf-cancelar" style="background:#1e1e1e;border:2px solid #aaa;border-radius:6px;
                         padding:7px 16px;color:#fff;cursor:pointer;font-family:inherit;font-size:12px">✕ Cancelar</button>
@@ -222,9 +244,10 @@
             <div id="ml-drag" style="display:flex;justify-content:space-between;align-items:center;
                 margin-bottom:12px;cursor:grab;padding-bottom:8px;border-bottom:1px solid #222">
                 <span style="color:#f9a825;font-weight:bold;font-size:13px;letter-spacing:1px">🔧 ATENDIMENTO</span>
-                <button id="ml-fechar" style="background:none;border:none;color:#555;cursor:pointer;font-size:16px;padding:0;line-height:1">✕</button>
+                <button id="ml-fechar" style="background:none;border:none;color:#888;cursor:pointer;font-size:16px;padding:0;line-height:1">✕</button>
             </div>
-            <div id="ml-status" style="color:#aaa;font-size:11px;margin-bottom:12px">🔍 Buscando card...</div>
+            <div id="ml-status" style="color:#ccc;font-size:11px;margin-bottom:12px">🔍 Buscando card...</div>
+            <div id="ml-mais-compras" style="display:none;margin-bottom:10px"></div>
             <div id="ml-acoes" style="display:none;flex-direction:column;gap:8px"></div>
         `;
         document.body.appendChild(painel);
@@ -262,11 +285,12 @@
             return;
         }
 
-        const statusEl = document.getElementById("ml-status");
-        const acoesEl  = document.getElementById("ml-acoes");
+        const statusEl       = document.getElementById("ml-status");
+        const maisComprasEl  = document.getElementById("ml-mais-compras");
+        const acoesEl        = document.getElementById("ml-acoes");
 
         if (!card) {
-            statusEl.innerHTML = `<span style="color:#ef5350">❌ Card não encontrado</span><br><span style="color:#555">ID: ${vendaId}</span>`;
+            statusEl.innerHTML = `<span style="color:#ef5350">❌ Card não encontrado</span><br><span style="color:#888">ID: ${vendaId}</span>`;
             return;
         }
 
@@ -278,6 +302,9 @@
         const modoAlteracao  = listaEm(listaAtualNome, LISTAS_ALTERACAO);
         const modoAguardando = listaEm(listaAtualNome, LISTAS_AGUARDANDO);
         const modoExportando = listaEm(listaAtualNome, LISTAS_EXPORTANDO);
+        const modoFazCroqui  = listaEm(listaAtualNome, LISTAS_FAZENDO_CROQUI);
+        const modoConferindo = listaEm(listaAtualNome, LISTAS_CONFERINDO);
+        const modoFinalizado = listaEm(listaAtualNome, LISTAS_FINALIZADO);
 
         const listaExportando_    = encontrarLista(listas, LISTA_EXPORTANDO);
         const listaExportado_     = encontrarLista(listas, LISTA_EXPORTADO);
@@ -288,15 +315,37 @@
         const listaAguardando_    = encontrarLista(listas, LISTA_AGUARDANDO);
         const listaAguardandoAlt_ = encontrarLista(listas, LISTA_AGUARDANDO_ALT);
         const listaCorrecao_      = encontrarLista(listas, LISTA_CORRECAO);
+        const listaConferindo_    = encontrarLista(listas, LISTA_CONFERINDO);  // v3.2
+        const listaFinalizado_    = encontrarLista(listas, LISTA_FINALIZADO);  // v3.2
         const listasAlt           = encontrarListasAlteracao(listas);
 
         const etqSemLogo     = etiquetas.find(e => (e.name || "").toLowerCase().includes(ETIQUETA_SEM_LOGO));
         const etqMaisCompras = etiquetas.find(e => (e.name || "").toLowerCase().includes(ETIQUETA_MAIS_COMPRAS));
         const cardTemSemLogo = etqSemLogo && (card.idLabels || []).includes(etqSemLogo.id);
 
+        // ── v3.2: Detectar mais compras automaticamente ──
+        const partes = card.name.split(" - ");
+        const nomeCliente = (partes.length > 1
+            ? partes.slice(1).join(" - ").trim()
+            : card.name.trim()).toLowerCase();
+
+        const outrosCards = todosCards.filter(c =>
+            c.id !== card.id && c.name.toLowerCase().includes(nomeCliente) && nomeCliente.length >= 4
+        );
+
+        if (outrosCards.length > 0) {
+            maisComprasEl.style.display = "inline-block";
+            maisComprasEl.innerHTML = `
+                <span style="background:#0047b3;border-radius:10px;
+                    padding:2px 8px;font-size:10px;color:#b3d4ff;white-space:nowrap">
+                    🔁 ${outrosCards.length} outro(s) pedido(s)
+                </span>
+            `;
+        }
+
         statusEl.innerHTML = `
-            <div style="color:#ddd;margin-bottom:4px;word-break:break-word;font-size:11px">${card.name}</div>
-            <div style="color:#888;font-size:11px">📋 ${listaAtualNome}</div>
+            <div style="color:#eee;margin-bottom:4px;word-break:break-word;font-size:11px">${card.name}</div>
+            <div style="color:#aaa;font-size:11px">📋 ${listaAtualNome}</div>
         `;
 
         function btn(label, cor, fn) {
@@ -304,7 +353,7 @@
             b.innerText = label;
             Object.assign(b.style, {
                 background: "#1e1e1e", border: `1px solid ${cor}`, borderRadius: "8px",
-                padding: "8px 10px", cursor: "pointer", color: "#fff", fontFamily: "inherit",
+                padding: "8px 10px", cursor: "pointer", color: "#eee", fontFamily: "inherit",
                 fontSize: "12px", textAlign: "left", transition: "background 0.15s", width: "100%"
             });
             b.onmouseenter = () => b.style.background = "#2a2a2a";
@@ -317,7 +366,7 @@
         async function mover(listaId, listaNome) {
             try {
                 await moverCard(card.id, listaId);
-                statusEl.innerHTML = `<span style="color:#aaa">✅ ${listaNome}</span>`;
+                statusEl.innerHTML = `<span style="color:#ccc">✅ ${listaNome}</span>`;
                 toast(`✅ ${listaNome}`);
             } catch { toast("❌ Erro ao mover card", "erro"); }
         }
@@ -353,7 +402,7 @@
             const sel = document.createElement("select");
             Object.assign(sel.style, {
                 background: "#1e1e1e", border: "1px solid #ef6c00", borderRadius: "8px",
-                padding: "7px 10px", color: "#fff", fontFamily: "inherit",
+                padding: "7px 10px", color: "#eee", fontFamily: "inherit",
                 fontSize: "12px", width: "100%", cursor: "pointer"
             });
             listasAlt.forEach(l => {
@@ -382,14 +431,17 @@
 
         // ── INICIAL ──
         if (modoInicial) {
-            if (listaDesenv_)  acoesEl.appendChild(btn("📋 Ir para Desenvolvimento", "#6a1b9a", () => mover(listaDesenv_.id, LISTA_DESENVOLVIMENTO)));
-            if (listaAcoes_)   acoesEl.appendChild(btn("♻️ Ir para Ações", "#00695c",           () => mover(listaAcoes_.id, LISTA_ACOES)));
+            if (listaDesenv_)  acoesEl.appendChild(btn("📋 Desenvolvimento", "#6a1b9a", () => mover(listaDesenv_.id, LISTA_DESENVOLVIMENTO)));
+            if (listaAcoes_)   acoesEl.appendChild(btn("♻️ Ações", "#00695c",           () => mover(listaAcoes_.id, LISTA_ACOES)));
         }
 
         // ── DESENVOLVIMENTO ──
         else if (modoDesenv) {
             if (listaAguardando_) acoesEl.appendChild(btn("⏳ Aguardando Aprovação", "#f9a825",  () => mover(listaAguardando_.id, LISTA_AGUARDANDO)));
             if (listaFaltaInfo_)  acoesEl.appendChild(btn("❓ Falta Informações", "#546e7a",     () => mover(listaFaltaInfo_.id, LISTA_FALTA_INFO)));
+            if (listaAcoes_)      acoesEl.appendChild(btn("♻️ Ações", "#00695c", () =>
+                moverConfirmar(listaAcoes_.id, LISTA_ACOES, "⚠️ Mover para Ações",
+                    `Mover card para <strong>${LISTA_ACOES}</strong>?`)));
         }
 
         // ── AGUARDANDO APROVAÇÃO (normal ou da alteração) ──
@@ -412,8 +464,28 @@
 
         // ── EXPORTANDO ──
         else if (modoExportando) {
-            if (listaCorrecao_) acoesEl.appendChild(btn("🔧 Correção", "#ef6c00",  () => mover(listaCorrecao_.id, LISTA_CORRECAO)));
-            if (listaExportado_) acoesEl.appendChild(btn("📦 Exportado", "#2e7d32", () => mover(listaExportado_.id, LISTA_EXPORTADO)));
+            if (listaExportado_)  acoesEl.appendChild(btn("📦 Exportado", "#2e7d32",   () => mover(listaExportado_.id, LISTA_EXPORTADO)));
+            if (listaCorrecao_)   acoesEl.appendChild(btn("🔧 Correção", "#ef6c00",    () => mover(listaCorrecao_.id, LISTA_CORRECAO)));
+        }
+
+        // ── FAZENDO CROQUI ──
+        else if (modoFazCroqui) {
+            if (listaConferindo_) acoesEl.appendChild(btn("🔍 Conferindo", "#0288d1",   () => mover(listaConferindo_.id, LISTA_CONFERINDO)));
+            if (listaCorrecao_)   acoesEl.appendChild(btn("🔧 Correção", "#ef6c00",     () => mover(listaCorrecao_.id, LISTA_CORRECAO)));
+            if (listaExportando_) acoesEl.appendChild(btn("🖨️ Exportando", "#7b1fa2",  () =>
+                moverConfirmar(listaExportando_.id, LISTA_EXPORTANDO, "⚠️ Voltar para Exportando",
+                    `Mover card para <strong>${LISTA_EXPORTANDO}</strong>?`)));
+        }
+
+        // ── CONFERINDO ──
+        else if (modoConferindo) {
+            if (listaFinalizado_) acoesEl.appendChild(btn("✅ Finalizado", "#2e7d32",  () => mover(listaFinalizado_.id, LISTA_FINALIZADO)));
+            if (listaCorrecao_)   acoesEl.appendChild(btn("🔧 Correção", "#ef6c00",    () => mover(listaCorrecao_.id, LISTA_CORRECAO)));
+        }
+
+        // ── FINALIZADO ──
+        else if (modoFinalizado) {
+            // Sem ações diretas — card já concluído
         }
 
         // ── OUTRAS LISTAS — mostra tudo com confirmação ──
@@ -438,6 +510,15 @@
             if (listaDesenv_) acoesEl.appendChild(btn("📋 Desenvolvimento", "#6a1b9a", () =>
                 moverConfirmar(listaDesenv_.id, LISTA_DESENVOLVIMENTO, "⚠️ Fora do fluxo",
                     `Card em <strong>${listaAtualNome}</strong>.<br>Mover para <strong>${LISTA_DESENVOLVIMENTO}</strong>?`)));
+            if (listaCorrecao_) acoesEl.appendChild(btn("🔧 Correção", "#ef6c00", () =>
+                moverConfirmar(listaCorrecao_.id, LISTA_CORRECAO, "⚠️ Fora do fluxo",
+                    `Card em <strong>${listaAtualNome}</strong>.<br>Mover para <strong>${LISTA_CORRECAO}</strong>?`)));
+            if (listaConferindo_) acoesEl.appendChild(btn("🔍 Conferindo", "#0288d1", () =>
+                moverConfirmar(listaConferindo_.id, LISTA_CONFERINDO, "⚠️ Fora do fluxo",
+                    `Card em <strong>${listaAtualNome}</strong>.<br>Mover para <strong>${LISTA_CONFERINDO}</strong>?`)));
+            if (listaFinalizado_) acoesEl.appendChild(btn("✅ Finalizado", "#2e7d32", () =>
+                moverConfirmar(listaFinalizado_.id, LISTA_FINALIZADO, "⚠️ Fora do fluxo",
+                    `Card em <strong>${listaAtualNome}</strong>.<br>Mover para <strong>${LISTA_FINALIZADO}</strong>?`)));
         }
 
         // ── RECLAMAÇÃO — sempre aparece, sempre pede confirmação ──
@@ -451,10 +532,6 @@
         if (etqMaisCompras) {
             acoesEl.appendChild(btn("🔎 Rastrear mais compras", "#7b1fa2", async () => {
                 try {
-                    const partes = card.name.split(" - ");
-                    const nomeCliente = (partes.length > 1
-                        ? partes.slice(1).join(" - ").trim()
-                        : card.name.trim()).toLowerCase();
                     if (nomeCliente.length < 4) { toast("⚠️ Nome muito curto", "info"); return; }
                     const iguais = todosCards.filter(c => c.id !== card.id && c.name.toLowerCase().includes(nomeCliente));
                     if (iguais.length === 0) { toast("✅ Nenhum outro card com mesmo nome", "info"); return; }
