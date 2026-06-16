@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ML — Painel de Atendimento
 // @namespace    empresa-ml-chat
-// @version      3.3
+// @version      3.4
 // @description  Painel de ações no chat do cliente ML
 // @match        https://www.mercadolivre.com.br/vendas/*/mensagens*
 // @grant        GM_xmlhttpRequest
@@ -297,6 +297,8 @@
         const listaAtual     = listas.find(l => l.id === card.idList);
         const listaAtualNome = listaAtual?.name || "—";
 
+        const modoComprou    = norm(listaAtualNome).startsWith("COMPROU");        // v3.4
+        const modoCancelando = norm(listaAtualNome).startsWith("CANCELANDO");     // v3.4
         const modoInicial    = listaEm(listaAtualNome, LISTAS_INICIAL);
         const modoDesenv     = listaEm(listaAtualNome, LISTAS_DESENVOLVIMENTO);
         const modoAlteracao  = listaEm(listaAtualNome, LISTAS_ALTERACAO);
@@ -318,6 +320,7 @@
         const listaConferindo_    = encontrarLista(listas, LISTA_CONFERINDO);  // v3.2
         const listaFinalizado_    = encontrarLista(listas, LISTA_FINALIZADO);  // v3.2
         const listasAlt           = encontrarListasAlteracao(listas);
+        const listaCancelando_    = listas.find(l => norm(l.name).startsWith("CANCELANDO"));  // v3.4
 
         const etqSemLogo     = etiquetas.find(e => (e.name || "").toLowerCase().includes(ETIQUETA_SEM_LOGO));
         const etqMaisCompras = etiquetas.find(e => (e.name || "").toLowerCase().includes(ETIQUETA_MAIS_COMPRAS));
@@ -429,8 +432,14 @@
 
         acoesEl.style.display = "flex";
 
+        // ── COMPROU ── (v3.4) — início do fluxo, mesmas ações da INICIAL
+        if (modoComprou) {
+            if (listaDesenv_)  acoesEl.appendChild(btn("📋 Desenvolvimento", "#6a1b9a", () => mover(listaDesenv_.id, LISTA_DESENVOLVIMENTO)));
+            if (listaAcoes_)   acoesEl.appendChild(btn("♻️ Ações", "#00695c",           () => mover(listaAcoes_.id, LISTA_ACOES)));
+        }
+
         // ── INICIAL ──
-        if (modoInicial) {
+        else if (modoInicial) {
             if (listaDesenv_)  acoesEl.appendChild(btn("📋 Desenvolvimento", "#6a1b9a", () => mover(listaDesenv_.id, LISTA_DESENVOLVIMENTO)));
             if (listaAcoes_)   acoesEl.appendChild(btn("♻️ Ações", "#00695c",           () => mover(listaAcoes_.id, LISTA_ACOES)));
         }
@@ -455,6 +464,9 @@
             }
             if (etqSemLogo) acoesEl.appendChild(btnEtiquetaSemLogo());
             if (listasAlt.length > 0) acoesEl.appendChild(selectAlteracao(false));
+            if (listaAcoes_) acoesEl.appendChild(btn("♻️ Ações", "#00695c", () =>           // v3.4
+                moverConfirmar(listaAcoes_.id, LISTA_ACOES, "⚠️ Mover para Ações",
+                    `Mover card para <strong>${LISTA_ACOES}</strong>?`)));
         }
 
         // ── ALTERAÇÃO ──
@@ -526,6 +538,13 @@
             acoesEl.appendChild(btn("🚨 Abriu reclamação", "#b71c1c", () =>
                 moverConfirmar(listaReclamacoes_.id, LISTA_RECLAMACOES, "⚠️ Abriu reclamação",
                     `Mover card para<br><strong>${LISTA_RECLAMACOES}</strong>?`)));
+        }
+
+        // ── CANCELANDO — sempre aparece (exceto se já está), pede confirmação ── (v3.4)
+        if (listaCancelando_ && !modoCancelando) {
+            acoesEl.appendChild(btn("🚫 Cancelando", "#d84315", () =>
+                moverConfirmar(listaCancelando_.id, listaCancelando_.name, "⚠️ Cancelando",
+                    `Mover card para<br><strong>${listaCancelando_.name}</strong>?`)));
         }
 
         // ── RASTREAR MAIS COMPRAS — sempre aparece ──

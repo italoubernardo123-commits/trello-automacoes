@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Shopee — Painel de Atendimento
 // @namespace    empresa-shopee-chat
-// @version      1.3
+// @version      1.4
 // @description  Painel de ações no chat da Shopee
 // @match        https://seller.shopee.com.br/new-webchat/*
 // @grant        GM_xmlhttpRequest
@@ -358,6 +358,8 @@
         const listaAtual     = listas.find(l => l.id === card.idList);
         const listaAtualNome = listaAtual?.name || "—";
 
+        const modoComprou    = norm(listaAtualNome).startsWith("COMPROU");        // v1.4
+        const modoCancelando = norm(listaAtualNome).startsWith("CANCELANDO");     // v1.4
         const modoInicial    = listaEm(listaAtualNome, LISTAS_INICIAL);
         const modoDesenv     = listaEm(listaAtualNome, LISTAS_DESENVOLVIMENTO);
         const modoAlteracao  = listaEm(listaAtualNome, LISTAS_ALTERACAO);
@@ -379,6 +381,7 @@
         const listaConferindo_    = encontrarLista(listas, LISTA_CONFERINDO);
         const listaFinalizado_    = encontrarLista(listas, LISTA_FINALIZADO);
         const listasAlt           = encontrarListasAlteracao(listas);
+        const listaCancelando_    = listas.find(l => norm(l.name).startsWith("CANCELANDO"));  // v1.4
 
         const etqSemLogo     = etiquetas.find(e => (e.name || "").toLowerCase().includes(ETIQUETA_SEM_LOGO));
         const etqMaisCompras = etiquetas.find(e => (e.name || "").toLowerCase().includes(ETIQUETA_MAIS_COMPRAS));
@@ -482,8 +485,14 @@
 
         acoesEl.style.display = "flex";
 
+        // ── COMPROU ── (v1.4) — início do fluxo, mesmas ações da INICIAL
+        if (modoComprou) {
+            if (listaDesenv_)  acoesEl.appendChild(btn("📋 Desenvolvimento", "#6a1b9a", () => mover(listaDesenv_.id, LISTA_DESENVOLVIMENTO)));
+            if (listaAcoes_)   acoesEl.appendChild(btn("♻️ Ações", "#00695c",           () => mover(listaAcoes_.id, LISTA_ACOES)));
+        }
+
         // ── INICIAL ──
-        if (modoInicial) {
+        else if (modoInicial) {
             if (listaDesenv_)  acoesEl.appendChild(btn("📋 Desenvolvimento", "#6a1b9a", () => mover(listaDesenv_.id, LISTA_DESENVOLVIMENTO)));
             if (listaAcoes_)   acoesEl.appendChild(btn("♻️ Ações", "#00695c",           () => mover(listaAcoes_.id, LISTA_ACOES)));
         }
@@ -507,6 +516,9 @@
             }
             if (etqSemLogo) acoesEl.appendChild(btnEtiquetaSemLogo());
             if (listasAlt.length > 0) acoesEl.appendChild(selectAlteracao(false));
+            if (listaAcoes_) acoesEl.appendChild(btn("♻️ Ações", "#00695c", () =>           // v1.4
+                moverConfirmar(listaAcoes_.id, LISTA_ACOES, "⚠️ Mover para Ações",
+                    `Mover card para <strong>${LISTA_ACOES}</strong>?`)));
         }
 
         // ── ALTERAÇÃO ──
@@ -571,6 +583,13 @@
             acoesEl.appendChild(btn("❓ Falta informações", "#546e7a", () =>
                 moverConfirmar(listaFaltaInfo_.id, LISTA_FALTA_INFO, "⚠️ Falta informações",
                     `Mover card para<br><strong>${LISTA_FALTA_INFO}</strong>?`)));
+        }
+
+        // ── CANCELANDO — sempre aparece (exceto se já está), pede confirmação ── (v1.4)
+        if (listaCancelando_ && !modoCancelando) {
+            acoesEl.appendChild(btn("🚫 Cancelando", "#d84315", () =>
+                moverConfirmar(listaCancelando_.id, listaCancelando_.name, "⚠️ Cancelando",
+                    `Mover card para<br><strong>${listaCancelando_.name}</strong>?`)));
         }
 
         // ── MAIS COMPRAS — sempre ──

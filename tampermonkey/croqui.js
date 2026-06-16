@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello — Gerador de Croqui
 // @namespace    empresa-croqui
-// @version      6.4
+// @version      6.5
 // @description  Gera folha de croqui a partir do card aberto no Trello
 // @match        https://trello.com/b/*
 // @match        https://trello.com/c/*
@@ -132,7 +132,6 @@
                 if (skuUpper.includes("CAPA"))   return "Capa";
                 return "Acessório";
             }
-            // DEPOIS (correto):
             const lower = nomeItem.toLowerCase();
             if (lower.includes("completo")) return "Completo";
             if (lower.includes("tecido"))   return "Tecido";
@@ -178,8 +177,7 @@
 
             // Tipo
             let tipo = "Completo";
-            // DEPOIS:
-if (lower.includes("tecido") && !lower.includes("completo")) tipo = "Tecido";
+            if (lower.includes("tecido") && !lower.includes("completo")) tipo = "Tecido";
 
             // Tamanho — 2m ou 2,80m
             let doisMetros = false;
