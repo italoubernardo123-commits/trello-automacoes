@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Scripts Empresa (Unificado)
 // @namespace    empresa
-// @version      5.0
+// @version      5.1
 // @description  Automações Trello
 // @match        https://trello.com/b/*
 // @grant        GM_xmlhttpRequest
@@ -16,9 +16,13 @@
     // CHANGELOG — edite aqui ao atualizar!
     // =========================
  
-    const VERSAO_ATUAL = "5.0";
+    const VERSAO_ATUAL = "5.1";
 
     const CHANGELOG = {
+        "5.1": [
+            "Shopee: métricas agora mostram também os 3 dias anteriores",
+            "Listas 'Cancelando' contam como Sem Info (ML e Shopee)",
+        ],
         "5.0": [
             "Métricas: Alterações 1-20 e Desenvolvimento 1-20 adicionados (ML e Shopee)",
         ],
@@ -190,15 +194,25 @@
         const [, m, d] = iso.split("-"); return `${d}/${m}`;
     }
 
-    function gerarDias(qtd = 7) {
+    function gerarDias(qtd = 7, diasAntes = 0) {
         const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-        return [...Array(qtd)].map((_, i) => {
+        const dias = [];
+        for (let i = -diasAntes; i < qtd; i++) {
             const d = new Date(hoje); d.setDate(hoje.getDate() + i);
-            return { dataISO: d.toISOString().slice(0, 10), nome: DIAS_SEMANA[d.getDay()], index: i };
-        });
+            dias.push({ dataISO: d.toISOString().slice(0, 10), nome: DIAS_SEMANA[d.getDay()], index: i });
+        }
+        return dias;
     }
 
     function classePorDia(index, total) {
+        if (index < 0) {
+            // Dias passados: cor só pelo volume, sem regra de urgência
+            if (total >= 100) return "dia-vermelho";
+            if (total >= 30)  return "dia-laranja";
+            if (total >= 5)   return "dia-amarelo";
+            if (total >= 1)   return "dia-amarelinho";
+            return "dia-preto";
+        }
         if (index === 0) return total === 0 ? "dia-preto" : "dia-vermelho";
         if (index === 1) return total === 0 ? "dia-verde" : "dia-vermelho";
         if (index === 2) {
@@ -273,7 +287,8 @@
             const data = dataLocalISO(c.due);
             const nome = listMap[c.idList] || "";
             let tipo = null;
-            if      (norm.SEM_INFO.includes(nome))      tipo = "semInfo";
+            if      (nome.startsWith("CANCELANDO"))     tipo = "semInfo";
+            else if (norm.SEM_INFO.includes(nome))      tipo = "semInfo";
             else if (norm.DESENVOLVIMENTO.includes(nome)) tipo = "desenvolvimento";
             else if (norm.ALTERACAO.includes(nome))      tipo = "alteracao";
             else if (norm.AGUARDANDO.includes(nome))     tipo = "aguardando";
@@ -289,13 +304,15 @@
     // CONSTRUIR LINHAS DA TABELA
     // =========================
 
-    function construirTabelaHTML(tabela, qtdDias) {
-        const dias = gerarDias(qtdDias);
+    function construirTabelaHTML(tabela, qtdDias, diasAntes = 0) {
+        const dias = gerarDias(qtdDias, diasAntes);
         const tg = { t: 0, s: 0, d: 0, a: 0, g: 0 };
         let linhas = "";
 
-        dias.forEach((d, idx) => {
-            if (qtdDias === 14 && idx === 7)
+        dias.forEach((d) => {
+            if (diasAntes > 0 && d.index === 0)
+                linhas += `<tr class="separador"><td colspan="6">── HOJE EM DIANTE ──</td></tr>`;
+            if (qtdDias === 14 && d.index === 7)
                 linhas += `<tr class="separador"><td colspan="6">── PRÓXIMA SEMANA ──</td></tr>`;
 
             const v = tabela[d.dataISO] || { semInfo: 0, desenvolvimento: 0, alteracao: 0, aguardando: 0 };
@@ -318,8 +335,8 @@
     // GERAR CSV
     // =========================
 
-    function gerarCSV(tabela, qtdDias) {
-        const dias = gerarDias(qtdDias);
+    function gerarCSV(tabela, qtdDias, diasAntes = 0) {
+        const dias = gerarDias(qtdDias, diasAntes);
         const rows = [["Dia","Data","Total","Sem Info","Em Desenvolvimento","Alteracao","Aguardando"]];
         dias.forEach(d => {
             const v = tabela[d.dataISO] || { semInfo: 0, desenvolvimento: 0, alteracao: 0, aguardando: 0 };
@@ -336,9 +353,9 @@
     // Atualizar = fechar e reabrir pelo menu (sem botão, sem cross-origin)
     // =========================
 
-    function abrirJanelaMetricas(tabela, titulo, corTitulo, qtdDias) {
-        const { linhas, tg } = construirTabelaHTML(tabela, qtdDias);
-        const csvData = gerarCSV(tabela, qtdDias);
+    function abrirJanelaMetricas(tabela, titulo, corTitulo, qtdDias, diasAntes = 0) {
+        const { linhas, tg } = construirTabelaHTML(tabela, qtdDias, diasAntes);
+        const csvData = gerarCSV(tabela, qtdDias, diasAntes);
         const geradoEm = new Date().toLocaleString("pt-BR");
         const csvURI   = "data:text/csv;charset=utf-8," + encodeURIComponent(csvData);
         const nomeCSV  = titulo.replace(/\s+/g, "_") + "_" +
@@ -357,7 +374,7 @@
 
 <div class="toolbar">
     <a class="btn-csv" href="${csvURI}" download="${nomeCSV}">📥 Exportar CSV</a>
-    <span style="color:#555;font-size:0.72rem;margin-left:auto">Exibindo ${qtdDias} dias</span>
+    <span style="color:#555;font-size:0.72rem;margin-left:auto">Exibindo ${qtdDias + diasAntes} dias</span>
 </div>
 
 <div class="legenda">
@@ -377,7 +394,7 @@
 <tbody>
 ${linhas}
 <tr class="total">
-    <td class="col-dia">🧮 TOTAL (${qtdDias} dias)</td>
+    <td class="col-dia">🧮 TOTAL (${qtdDias + diasAntes} dias)</td>
     <td>${tg.t}</td><td>${tg.s}</td><td>${tg.d}</td><td>${tg.a}</td><td>${tg.g}</td>
 </tr>
 </tbody>
@@ -412,7 +429,7 @@ ${linhas}
             const plat = await detectarPlataformaDoBoardAtual();
             if (plat === "ml") { alert("⚠️ Você está no quadro do ML!\nAcesse o quadro da Shopee para ver as métricas dela."); return; }
             const tabela = await buscarTabelaMetricas(LISTAS_SHOPEE);
-            abrirJanelaMetricas(tabela, "MÉTRICAS SHOPEE", "#ff9800", 7);
+            abrirJanelaMetricas(tabela, "MÉTRICAS SHOPEE", "#ff9800", 7, 3);
         } catch { alert("❌ Erro ao buscar dados. Verifique suas credenciais."); }
     }
 
@@ -425,7 +442,7 @@ ${linhas}
             const plat = await detectarPlataformaDoBoardAtual();
             if (plat === "ml") { alert("⚠️ Você está no quadro do ML!\nAcesse o quadro da Shopee para ver as métricas dela."); return; }
             const tabela = await buscarTabelaMetricas(LISTAS_SHOPEE);
-            abrirJanelaMetricas(tabela, "MÉTRICAS SHOPEE", "#ff9800", 14);
+            abrirJanelaMetricas(tabela, "MÉTRICAS SHOPEE", "#ff9800", 14, 3);
         } catch { alert("❌ Erro ao buscar dados. Verifique suas credenciais."); }
     }
 
