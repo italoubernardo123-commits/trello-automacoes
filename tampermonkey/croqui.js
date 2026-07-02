@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello — Gerador de Croqui
 // @namespace    empresa-croqui
-// @version      6.5
+// @version      6.6
 // @description  Gera folha de croqui a partir do card aberto no Trello
 // @match        https://trello.com/b/*
 // @match        https://trello.com/c/*
@@ -99,8 +99,13 @@
             qtdTotal: 0,
             spec: "",
             doisMetros: false,
+            croquiMarrom: false,
             alertas: []
         };
+
+        // Marcador de croqui marrom (vendas Shopee com data igual à da plataforma)
+        // Tolerante a markdown bold (**Croqui:** marrom ou Croqui: marrom)
+        if (/Croqui[*\s:]+marrom/i.test(desc)) resultado.croquiMarrom = true;
 
         // Data e hora
         // Tolerante a markdown bold (**Data:** ou Data:)
@@ -261,7 +266,7 @@
         const btnCroqui = document.createElement("button");
         btnCroqui.id = "btn-croqui";
         btnCroqui.innerText = "📄 Croqui";
-        btnCroqui.title = "Gerar Croqui (Alt+C) — v6.3";
+        btnCroqui.title = "Gerar Croqui (Alt+C) — v6.6";
         Object.assign(btnCroqui.style, {
             position: "fixed", bottom: "20px", right: "120px", zIndex: "999999",
             padding: "10px 14px", borderRadius: "8px", border: "2px solid #f9a825",
@@ -324,6 +329,7 @@
         const doisMetrosAuto = dp?.doisMetros || false;
         const dataPedido    = dp?.dataPedido || "";
         const numPedido     = dp?.numeroPedido || "";
+        const croquiMarrom  = dp?.croquiMarrom || false;
         const alertas       = dp?.alertas || [];
         const semDescricao  = !dp || (!dp.numeroPedido && !dp.dataPedido && dp.itens.length === 0);
 
@@ -356,11 +362,12 @@
     <div style="background:#2a0000;border:1px solid #ef5350;border-radius:8px;padding:10px 14px;
         margin-bottom:8px;font-size:12px;color:#ef5350">${a}</div>`).join("")}
 
-    ${dataPedido || numPedido ? `
+    ${dataPedido || numPedido || croquiMarrom ? `
     <div style="background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:8px 14px;
         margin-bottom:12px;font-size:11px;color:#aaa;display:flex;gap:16px;flex-wrap:wrap">
         ${numPedido ? `<span>📦 <strong style="color:#fff">${numPedido}</strong></span>` : ""}
         ${dataPedido ? `<span>🕐 <strong style="color:#fff">${dataPedido}</strong></span>` : ""}
+        ${croquiMarrom ? `<span>🟤 <strong style="color:#a1887f">Croqui marrom</strong></span>` : ""}
     </div>` : ""}
 
     <div style="display:flex;flex-direction:column;gap:13px">
@@ -561,7 +568,8 @@
                 sedexMotivo: document.getElementById("cq-sedex-motivo").value.trim(),
                 imagens:   _imagens,
                 numeroPedido: numPedido,
-                dataPedido:   dataPedido
+                dataPedido:   dataPedido,
+                croquiMarrom: croquiMarrom
             };
             if (!d.nome)     return alert("❌ Informe o nome do cliente.");
             if (!d.designer) return alert("❌ Selecione um designer.");
@@ -617,9 +625,15 @@
             corData    = "#ff00fe";  corDataTxt = "#1a1a1a";
         }
 
+        // Croqui marrom — vendas Shopee com marcador **Croqui:** marrom (data igual à da Shopee):
+        // as barras pretas (nome do cliente e tarja 2m) ficam marrons
+        const MARROM      = "#795548";
+        const marromAtivo = isShopee && d.croquiMarrom;
+        if (marromAtivo) corCliente = MARROM;
+
         // Tarja 2m
-        const corTarja    = "#1a1a1a";
-        const corTarjaTxt = isTrafego ? "#4fc3f7" : (isML ? "#00ff01" : "#ff00fe");
+        const corTarja    = marromAtivo ? MARROM : "#1a1a1a";
+        const corTarjaTxt = marromAtivo ? "#fff" : (isTrafego ? "#4fc3f7" : (isML ? "#00ff01" : "#ff00fe"));
         const txtTarja    = "MODELO 2mts";
 
         // Logos SVG inline — sem dependência externa

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Vendas → Trello (ML + Shopee)
 // @namespace    vendas-trello
-// @version      1.2
+// @version      1.3
 // @match        https://www.mercadolivre.com.br/*
 // @match        https://www.mercadolibre.com.br/*
 // @match        https://seller.shopee.com.br/*
@@ -154,7 +154,6 @@
       BTN_TEXTO_COR: '#fff',
       ACCENT:        '#ee4d2d',
       LABEL:         'Shopee → Trello',
-      DIAS_ANTES:    2,
     },
   };
 
@@ -361,7 +360,6 @@
     const m = txt.match(/(\d{2})\/(\d{2})\/(\d{4})/);
     if (!m) return null;
     const d = new Date(parseInt(m[3]), parseInt(m[2])-1, parseInt(m[1]), 23, 59, 0);
-    d.setDate(d.getDate() - cfg.DIAS_ANTES);
     return d.toISOString();
   }
 
@@ -392,6 +390,7 @@
       const desc = [
         `**Comprador:** ${nome}`,
         `**ID do Pedido:** ${pedidoId}`,
+        `**Croqui:** marrom`,
         '',
         '**ITENS:**',
         ...itens.map(it => `- ${it.titulo}${it.sku ? ` | SKU: ${it.sku}` : ''} | ${it.qtd}`),

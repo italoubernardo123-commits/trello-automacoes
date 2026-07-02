@@ -14,7 +14,8 @@ Detecta automaticamente se você está no Mercado Livre ou na Shopee e cria card
 - Captura nome do comprador, produto, SKU, quantidade, data e link do chat
 - Suporte a **pacotes** (expande automaticamente para ler os itens internos)
 - Suporte a **múltiplos itens** no mesmo pedido (personalizado + pronta entrega)
-- Define **due date** automaticamente (ML: data do prazo / Shopee: prazo de envio − 2 dias)
+- Define **due date** automaticamente (ML: data do prazo / Shopee: mesma data do prazo de envio)
+- Vendas Shopee recebem o marcador `**Croqui:** marrom` na descrição — o `croqui.js` usa isso para gerar as barras do croqui em marrom
 - Detecta **duplicados** — não cria card se o pedido já existe no Trello
 - Detecta **mais compras** — adiciona etiqueta azul se o cliente já tem card no board
 - Captura **reclamações abertas** e adiciona etiqueta vermelha automaticamente
