@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Vendas → Trello (ML + Shopee)
 // @namespace    vendas-trello
-// @version      1.3
+// @version      1.4
 // @match        https://www.mercadolivre.com.br/*
 // @match        https://www.mercadolibre.com.br/*
 // @match        https://seller.shopee.com.br/*
@@ -290,33 +290,58 @@
   }
 
   function mlItens(card) {
-    const labels   = [...card.querySelectorAll('.label')].map(l => l.innerText.trim());
-    const skus     = [...card.querySelectorAll('.sku')].map(s => s.innerText.replace('SKU:', '').trim());
-    const unidades = [...card.querySelectorAll('.unit')].map(u => u.innerText.trim());
+    // Tenta os seletores em ordem; usa o primeiro que retornar resultado.
+    // Blinda contra o ML renomear classes (ex.: mudança de jul/2026).
+    const firstMatch = (...sels) => {
+      for (const s of sels) { const r = [...card.querySelectorAll(s)]; if (r.length) return r; }
+      return [];
+    };
+
+    const labels = firstMatch('.label').map(l => l.innerText.trim());
+    const skus   = firstMatch('.sc-product-data__sku', '.sku')
+                     .map(s => s.innerText.replace('SKU:', '').trim());
+
+    // Quantidade — primário: classe nova; fallback: classe antiga; último recurso: texto visível "N unidade(s)"
+    let unidades = firstMatch('.sc-product-data__qty', '.unit')
+                     .map(u => u.innerText.trim()).filter(Boolean);
+    if (unidades.length === 0) {
+      unidades = ((card.innerText || '').match(/\d+\s*unidades?/gi) || []).map(s => s.trim());
+    }
+
     const isPacote = labels[0]?.toLowerCase().includes('pacote');
 
     if (isPacote) {
       const itens = [];
       for (let i = 1; i < labels.length; i++)
         itens.push({ titulo: labels[i] || '', sku: skus[i-1] || '', qtd: unidades[i] || '1 unidade' });
-      return { itens, totalQtd: unidades[0] || `${itens.length} itens`, isPacote: true };
+      const totalNum = itens.reduce((acc, it) => acc + (parseInt(it.qtd) || 1), 0);
+      return { itens, totalQtd: unidades[0] || `${totalNum} unidade${totalNum !== 1 ? 's' : ''}`, isPacote: true };
     }
 
     const itens = labels.map((titulo, i) => ({ titulo, sku: skus[i] || '', qtd: unidades[i] || '1 unidade' }));
-    const totalNum = unidades.reduce((acc, u) => { const n = parseInt(u); return acc + (isNaN(n) ? 1 : n); }, 0);
+    const totalNum = itens.reduce((acc, it) => acc + (parseInt(it.qtd) || 1), 0);
     return { itens, totalQtd: `${totalNum} unidade${totalNum !== 1 ? 's' : ''}`, isPacote: false };
   }
 
+  let _expandindo = false; // trava contra reentrância
+
   async function mlExpandirPacotes() {
-    let n = 0;
-    document.querySelectorAll('.row-card-container').forEach(card => {
-      const labels = [...card.querySelectorAll('.label')].map(l => l.innerText.trim());
-      if (!labels[0]?.toLowerCase().includes('pacote')) return;
-      if (card.querySelectorAll('.sku').length > 0) return;
-      const t = card.querySelector('.toggle-button');
-      if (t) { t.click(); n++; }
-    });
-    if (n > 0) await new Promise(r => setTimeout(r, 600));
+    if (_expandindo) return;
+    _expandindo = true;
+    try {
+      let n = 0;
+      document.querySelectorAll('.row-card-container').forEach(card => {
+        const labels = [...card.querySelectorAll('.label')].map(l => l.innerText.trim());
+        if (!labels[0]?.toLowerCase().includes('pacote')) return;
+        // Já expandido? SKU novo do ML (.sc-product-data__sku) ou o antigo (.sku)
+        if (card.querySelectorAll('.sc-product-data__sku, .sku').length > 0) return;
+        const t = card.querySelector('.toggle-button');
+        if (t) { t.click(); n++; }
+      });
+      if (n > 0) await new Promise(r => setTimeout(r, 600));
+    } finally {
+      _expandindo = false;
+    }
   }
 
   function mlScrape() {
