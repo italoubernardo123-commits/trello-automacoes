@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello — Gerador de Croqui
 // @namespace    empresa-croqui
-// @version      6.6
+// @version      6.7
 // @description  Gera folha de croqui a partir do card aberto no Trello
 // @match        https://trello.com/b/*
 // @match        https://trello.com/c/*
@@ -266,7 +266,7 @@
         const btnCroqui = document.createElement("button");
         btnCroqui.id = "btn-croqui";
         btnCroqui.innerText = "📄 Croqui";
-        btnCroqui.title = "Gerar Croqui (Alt+C) — v6.6";
+        btnCroqui.title = "Gerar Croqui (Alt+C) — v6.7";
         Object.assign(btnCroqui.style, {
             position: "fixed", bottom: "20px", right: "120px", zIndex: "999999",
             padding: "10px 14px", borderRadius: "8px", border: "2px solid #f9a825",
@@ -367,7 +367,7 @@
         margin-bottom:12px;font-size:11px;color:#aaa;display:flex;gap:16px;flex-wrap:wrap">
         ${numPedido ? `<span>📦 <strong style="color:#fff">${numPedido}</strong></span>` : ""}
         ${dataPedido ? `<span>🕐 <strong style="color:#fff">${dataPedido}</strong></span>` : ""}
-        ${croquiMarrom ? `<span>🟤 <strong style="color:#a1887f">Croqui marrom</strong></span>` : ""}
+        ${croquiMarrom ? `<span>🩷 <strong style="color:#f48fb1">Croqui rosa</strong></span>` : ""}
     </div>` : ""}
 
     <div style="display:flex;flex-direction:column;gap:13px">
@@ -625,14 +625,15 @@
             corData    = "#ff00fe";  corDataTxt = "#1a1a1a";
         }
 
-        // Croqui marrom — vendas Shopee com marcador **Croqui:** marrom (data igual à da Shopee):
-        // as barras pretas (nome do cliente e tarja 2m) ficam marrons
-        const MARROM      = "#795548";
+        // Marcador **Croqui:** marrom (vendas Shopee com data igual à da Shopee):
+        // as barras pretas (nome do cliente e tarja 2m) ficam ROSA.
+        // O marcador nos cards continua escrito "marrom" — só a cor exibida mudou.
+        const COR_MARCADA = "#e91e63";
         const marromAtivo = isShopee && d.croquiMarrom;
-        if (marromAtivo) corCliente = MARROM;
+        if (marromAtivo) corCliente = COR_MARCADA;
 
         // Tarja 2m
-        const corTarja    = marromAtivo ? MARROM : "#1a1a1a";
+        const corTarja    = marromAtivo ? COR_MARCADA : "#1a1a1a";
         const corTarjaTxt = marromAtivo ? "#fff" : (isTrafego ? "#4fc3f7" : (isML ? "#00ff01" : "#ff00fe"));
         const txtTarja    = "MODELO 2mts";
 
