@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Vendas → Trello (ML + Shopee)
 // @namespace    vendas-trello
-// @version      1.4
+// @version      1.5
 // @match        https://www.mercadolivre.com.br/*
 // @match        https://www.mercadolibre.com.br/*
 // @match        https://seller.shopee.com.br/*
@@ -268,6 +268,17 @@
     return res.json();
   }
 
+  // ─── Kits ─────────────────────────────────────────────────────
+  // Anúncios tipo "Kit Completo 2 UNIDADES" vendem x1 mas contêm N unidades.
+  // Detecta N no título ou SKU (ex: "2 UNIDADES", "2 UN", SKU "…-2UNI", "KIT COM 2")
+  // para o TOTAL refletir unidades reais (qtd comprada × unidades por kit).
+  function unidadesPorKit(titulo, sku) {
+    const t = ' ' + ((titulo || '') + ' ' + (sku || '')).toUpperCase() + ' ';
+    let m = t.match(/(\d+)\s*(?:UNIDADES?|UNID|UNI|UN|PE[ÇC]AS?)\b/);
+    if (!m) m = t.match(/KIT\s*(?:COM|C\/)\s*(\d+)\b/);
+    return m ? Math.max(1, parseInt(m[1])) : 1;
+  }
+
   // ─── ML: scrape ───────────────────────────────────────────────
   const MESES = { janeiro:1,fevereiro:2,março:3,abril:4,maio:5,junho:6,julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12 };
   const BOTOES_ML = ['já estou com o produto', 'já tenho os produtos'];
@@ -314,13 +325,19 @@
       const itens = [];
       for (let i = 1; i < labels.length; i++)
         itens.push({ titulo: labels[i] || '', sku: skus[i-1] || '', qtd: unidades[i] || '1 unidade' });
-      const totalNum = itens.reduce((acc, it) => acc + (parseInt(it.qtd) || 1), 0);
-      return { itens, totalQtd: unidades[0] || `${totalNum} unidade${totalNum !== 1 ? 's' : ''}`, isPacote: true };
+      const totalNum = itens.reduce((acc, it) => acc + (parseInt(it.qtd) || 1) * unidadesPorKit(it.titulo, it.sku), 0);
+      const temKit = itens.some(it => unidadesPorKit(it.titulo, it.sku) > 1);
+      // Com kit no pacote, o total do ML conta itens (não unidades) — usa o calculado
+      const totalQtd = temKit
+        ? `${totalNum} unidade${totalNum !== 1 ? 's' : ''}`
+        : (unidades[0] || `${totalNum} unidade${totalNum !== 1 ? 's' : ''}`);
+      return { itens, totalQtd, isPacote: true, temKit };
     }
 
     const itens = labels.map((titulo, i) => ({ titulo, sku: skus[i] || '', qtd: unidades[i] || '1 unidade' }));
-    const totalNum = itens.reduce((acc, it) => acc + (parseInt(it.qtd) || 1), 0);
-    return { itens, totalQtd: `${totalNum} unidade${totalNum !== 1 ? 's' : ''}`, isPacote: false };
+    const totalNum = itens.reduce((acc, it) => acc + (parseInt(it.qtd) || 1) * unidadesPorKit(it.titulo, it.sku), 0);
+    const temKit = itens.some(it => unidadesPorKit(it.titulo, it.sku) > 1);
+    return { itens, totalQtd: `${totalNum} unidade${totalNum !== 1 ? 's' : ''}`, isPacote: false, temKit };
   }
 
   let _expandindo = false; // trava contra reentrância
@@ -360,7 +377,7 @@
       if (!nome || !link) return;
 
       const dueDate = mlDueDate(card);
-      const { itens, totalQtd, isPacote } = mlItens(card);
+      const { itens, totalQtd, isPacote, temKit } = mlItens(card);
       const desc = [
         isReclamacao ? '⚠️ RECLAMAÇÃO ABERTA' : '',
         `**Comprador:** ${nome}`,
@@ -374,7 +391,7 @@
         `**TOTAL:** ${totalQtd}`,
       ].filter(l => l !== '').join('\n');
 
-      mapa.set(link, { nome, link, data, orderId, dueDate, itens, totalQtd, isPacote, isReclamacao, desc, _chave: link });
+      mapa.set(link, { nome, link, data, orderId, dueDate, itens, totalQtd, isPacote, temKit, isReclamacao, desc, _chave: link });
     });
     return [...mapa.values()];
   }
@@ -393,8 +410,12 @@
     const skus  = [...card.querySelectorAll('.item-description')].map(e => e.innerText.trim());
     const qtds  = [...card.querySelectorAll('.item-amount')].map(e => e.innerText.trim());
     const itens = nomes.map((titulo, i) => ({ titulo, sku: skus[i] || '', qtd: qtds[i] || 'x1' }));
-    const totalNum = qtds.reduce((acc, q) => { const n = parseInt(q.replace('x','')); return acc + (isNaN(n) ? 1 : n); }, 0);
-    return { itens, totalQtd: `${totalNum} unidade${totalNum !== 1 ? 's' : ''}` };
+    const totalNum = itens.reduce((acc, it) => {
+      const n = parseInt(String(it.qtd).replace(/x/i, ''));
+      return acc + (isNaN(n) ? 1 : n) * unidadesPorKit(it.titulo, it.sku);
+    }, 0);
+    const temKit = itens.some(it => unidadesPorKit(it.titulo, it.sku) > 1);
+    return { itens, totalQtd: `${totalNum} unidade${totalNum !== 1 ? 's' : ''}`, temKit };
   }
 
   function spScrape() {
@@ -411,7 +432,7 @@
       if (!nome || !pedidoId) return;
 
       const dueDate = spDueDate(card);
-      const { itens, totalQtd } = spItens(card);
+      const { itens, totalQtd, temKit } = spItens(card);
       const desc = [
         `**Comprador:** ${nome}`,
         `**ID do Pedido:** ${pedidoId}`,
@@ -423,7 +444,7 @@
         `**TOTAL:** ${totalQtd}`,
       ].join('\n');
 
-      mapa.set(pedidoId, { nome, pedidoId, itens, totalQtd, dueDate, desc, _chave: pedidoId });
+      mapa.set(pedidoId, { nome, pedidoId, itens, totalQtd, temKit, dueDate, desc, _chave: pedidoId });
     });
     return [...mapa.values()];
   }
@@ -461,6 +482,9 @@
         chips.appendChild(el('div', { padding: '2px 8px', background: '#001a3a', border: '1px solid #0047b3', borderRadius: '4px', color: '#7ab8ff', fontSize: '11px', fontWeight: 'bold' }, '🔁 Mais compras'));
 
       chips.appendChild(el('div', { padding: '2px 8px', background: '#1e2a1e', border: '1px solid #2a4a2a', borderRadius: '4px', color: '#34d399', fontSize: '11px' }, `📦 ${p.totalQtd}`));
+
+      if (p.temKit)
+        chips.appendChild(el('div', { padding: '2px 8px', background: '#2a1a2a', border: '1px solid #7a447a', borderRadius: '4px', color: '#e879f9', fontSize: '11px', fontWeight: 'bold' }, '🧩 Kit — total ajustado'));
 
       if (p.isPacote)
         chips.appendChild(el('div', { padding: '2px 8px', background: '#1a1a2a', border: '1px solid #2a2a5a', borderRadius: '4px', color: '#7a9fff', fontSize: '11px' }, '🔀 Pacote'));

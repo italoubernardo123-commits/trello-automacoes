@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello — Gerador de Croqui
 // @namespace    empresa-croqui
-// @version      6.7
+// @version      6.8
 // @description  Gera folha de croqui a partir do card aberto no Trello
 // @match        https://trello.com/b/*
 // @match        https://trello.com/c/*
@@ -89,6 +89,15 @@
     // PARSEAR DESCRIÇÃO DO CARD
     // =========================
 
+    // Anúncios tipo "Kit Completo 2 UNIDADES" vendem x1 mas contêm N unidades.
+    // Detecta N no título ou SKU (ex: "2 UNIDADES", "2 UN", SKU "…-2UNI", "KIT COM 2").
+    function unidadesPorKit(titulo, sku) {
+        const t = ' ' + ((titulo || '') + ' ' + (sku || '')).toUpperCase() + ' ';
+        let m = t.match(/(\d+)\s*(?:UNIDADES?|UNID|UNI|UN|PE[ÇC]AS?)\b/);
+        if (!m) m = t.match(/KIT\s*(?:COM|C\/)\s*(\d+)\b/);
+        return m ? Math.max(1, parseInt(m[1])) : 1;
+    }
+
     function parsearDescricao(desc) {
         if (!desc || !desc.trim()) return null;
 
@@ -154,7 +163,8 @@
 
             const nomeItem = mItem[1].trim();
             const sku      = mItem[2].trim().replace(/[\[\]]/g, "").trim();
-            const qtd      = parseInt(mItem[3]);
+            // Qtd real = qtd comprada × unidades por kit (ex: x1 de "Kit 2 UNIDADES" = 2)
+            const qtd      = parseInt(mItem[3]) * unidadesPorKit(nomeItem, sku);
             const tipo     = detectarTipoItem(nomeItem, sku);
             const comBanner = temBanner(nomeItem, sku);
 
@@ -266,7 +276,7 @@
         const btnCroqui = document.createElement("button");
         btnCroqui.id = "btn-croqui";
         btnCroqui.innerText = "📄 Croqui";
-        btnCroqui.title = "Gerar Croqui (Alt+C) — v6.7";
+        btnCroqui.title = "Gerar Croqui (Alt+C) — v6.8";
         Object.assign(btnCroqui.style, {
             position: "fixed", bottom: "20px", right: "120px", zIndex: "999999",
             padding: "10px 14px", borderRadius: "8px", border: "2px solid #f9a825",
