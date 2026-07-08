@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trello — Gerador de Croqui
 // @namespace    empresa-croqui
-// @version      6.9
+// @version      7.0
 // @description  Gera folha de croqui a partir do card aberto no Trello
 // @match        https://trello.com/b/*
 // @match        https://trello.com/c/*
@@ -277,7 +277,7 @@
         const btnCroqui = document.createElement("button");
         btnCroqui.id = "btn-croqui";
         btnCroqui.innerText = "📄 Croqui";
-        btnCroqui.title = "Gerar Croqui (Alt+C) — v6.9";
+        btnCroqui.title = "Gerar Croqui (Alt+C) — v7.0";
         Object.assign(btnCroqui.style, {
             position: "fixed", bottom: "20px", right: "120px", zIndex: "999999",
             padding: "10px 14px", borderRadius: "8px", border: "2px solid #f9a825",
@@ -602,10 +602,9 @@
         // Cores por combinação plataforma + modelo
         // ML 2,80m     → amarelo (#FFD600) + azul cliente
         // ML 2m        → verde  (#00ff01) + preto cliente
-        // Shopee 2,80m → verde  (#00ff01) + preto cliente
-        // Shopee 2m    → amarelo (#FFD600) + preto cliente
+        // Shopee 2,80m → TUDO azul (#1565c0) — ≠ azul claro do tráfego
+        // Shopee 2m    → TUDO verde escuro (#2e7d32) — ≠ verde neon do ML, inclusive a tarja
         // Tráfego      → azul claro (#4fc3f7) + preto cliente
-        // (plataforma se distingue pelo logo no rodapé)
 
         let corCab, corCabTxt, corCliente, corData, corDataTxt;
 
@@ -625,21 +624,21 @@
             corCliente = "#1a1a1a";
             corData    = "#00ff01";  corDataTxt = "#1a1a1a";
         } else if (!isML && !is2m) {
-            // Shopee 2,80m — verde e preto
-            corCab     = "#00ff01";  corCabTxt  = "#1a1a1a";
-            corCliente = "#1a1a1a";
-            corData    = "#00ff01";  corDataTxt = "#1a1a1a";
+            // Shopee 2,80m — tudo azul, texto branco
+            corCab     = "#1565c0";  corCabTxt  = "#fff";
+            corCliente = "#1565c0";
+            corData    = "#1565c0";  corDataTxt = "#fff";
         } else {
-            // Shopee 2m — amarelo e preto
-            corCab     = "#FFD600";  corCabTxt  = "#1a1a1a";
-            corCliente = "#1a1a1a";
-            corData    = "#FFD600";  corDataTxt = "#1a1a1a";
+            // Shopee 2m — tudo verde escuro, texto branco
+            corCab     = "#2e7d32";  corCabTxt  = "#fff";
+            corCliente = "#2e7d32";
+            corData    = "#2e7d32";  corDataTxt = "#fff";
         }
 
-        // Tarja 2m — sempre preta; texto na cor do modelo 2m da plataforma.
-        // (O marcador **Croqui:** marrom não muda mais cor nenhuma desde a v6.9.)
-        const corTarja    = "#1a1a1a";
-        const corTarjaTxt = isTrafego ? "#4fc3f7" : (isML ? "#00ff01" : "#FFD600");
+        // Tarja 2m — Shopee: verde escuro com texto branco; ML/Tráfego: preta como antes.
+        // (O marcador **Croqui:** marrom não muda cor nenhuma desde a v6.9.)
+        const corTarja    = isShopee ? "#2e7d32" : "#1a1a1a";
+        const corTarjaTxt = isShopee ? "#fff" : (isTrafego ? "#4fc3f7" : "#00ff01");
         const txtTarja    = "MODELO 2mts";
 
         // Logos SVG inline — sem dependência externa

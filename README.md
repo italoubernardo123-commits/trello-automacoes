@@ -16,7 +16,7 @@ Detecta automaticamente se você está no Mercado Livre ou na Shopee e cria card
 - Suporte a **múltiplos itens** no mesmo pedido (personalizado + pronta entrega)
 - Detecta **kits** pelo título/SKU do anúncio ("Kit 2 UNIDADES", SKU "…-2UNI" etc.) — o TOTAL do card e a QUANTIDADE do croqui contam as unidades reais (qtd comprada × unidades do kit)
 - Define **due date** automaticamente (ML: data do prazo / Shopee: mesma data do prazo de envio)
-- Vendas Shopee recebem o marcador `**Croqui:** marrom` na descrição (sem efeito visual desde o croqui v6.9 — cores fixas por modelo: Shopee 2,80m verde, 2m amarelo)
+- Vendas Shopee recebem o marcador `**Croqui:** marrom` na descrição (sem efeito visual desde o croqui v6.9 — cores fixas por modelo: Shopee 2,80m toda azul, 2m toda verde-escuro)
 - Detecta **duplicados** — não cria card se o pedido já existe no Trello
 - Detecta **mais compras** — adiciona etiqueta azul se o cliente já tem card no board
 - Captura **reclamações abertas** e adiciona etiqueta vermelha automaticamente
