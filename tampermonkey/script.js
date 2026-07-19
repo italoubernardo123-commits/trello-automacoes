@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         Scripts Empresa (Unificado)
 // @namespace    empresa
-// @version      5.1
+// @version      5.2
 // @description  Automações Trello
 // @match        https://trello.com/b/*
 // @grant        GM_xmlhttpRequest
-// @updateURL    https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/refs/heads/main/tampermonkey/script.js
-// @downloadURL  https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/refs/heads/main/tampermonkey/script.js
+// @updateURL    https://raw.githubusercontent.com/italoBer/trello-automacoes/refs/heads/main/tampermonkey/script.js
+// @downloadURL  https://raw.githubusercontent.com/italoBer/trello-automacoes/refs/heads/main/tampermonkey/script.js
 // ==/UserScript==
 
 (function () {
@@ -16,9 +16,12 @@
     // CHANGELOG — edite aqui ao atualizar!
     // =========================
  
-    const VERSAO_ATUAL = "5.1";
+    const VERSAO_ATUAL = "5.2";
 
     const CHANGELOG = {
+        "5.2": [
+            "Endereço de atualização migrado para o novo GitHub (italoBer)",
+        ],
         "5.1": [
             "Shopee: métricas agora mostram também os 3 dias anteriores",
             "Listas 'Cancelando' contam como Sem Info (ML e Shopee)",

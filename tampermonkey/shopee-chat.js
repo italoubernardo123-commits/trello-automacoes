@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         Shopee — Painel de Atendimento
 // @namespace    empresa-shopee-chat
-// @version      1.4
+// @version      1.5
 // @description  Painel de ações no chat da Shopee
 // @match        https://seller.shopee.com.br/new-webchat/*
 // @grant        GM_xmlhttpRequest
-// @updateURL    https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/refs/heads/main/tampermonkey/shopee-chat.js
-// @downloadURL  https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/refs/heads/main/tampermonkey/shopee-chat.js
+// @updateURL    https://raw.githubusercontent.com/italoBer/trello-automacoes/refs/heads/main/tampermonkey/shopee-chat.js
+// @downloadURL  https://raw.githubusercontent.com/italoBer/trello-automacoes/refs/heads/main/tampermonkey/shopee-chat.js
 // ==/UserScript==
 
 (function () {

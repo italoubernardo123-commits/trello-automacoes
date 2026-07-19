@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         Vendas → Trello (ML + Shopee)
 // @namespace    vendas-trello
-// @version      1.5
+// @version      1.6
 // @match        https://www.mercadolivre.com.br/*
 // @match        https://www.mercadolibre.com.br/*
 // @match        https://seller.shopee.com.br/*
 // @grant        GM_setValue
 // @grant        GM_getValue
-// @updateURL    https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/main/tampermonkey/trello-sync.js
-// @downloadURL  https://raw.githubusercontent.com/italoubernardo123-commits/trello-automacoes/main/tampermonkey/trello-sync.js
+// @updateURL    https://raw.githubusercontent.com/italoBer/trello-automacoes/main/tampermonkey/trello-sync.js
+// @downloadURL  https://raw.githubusercontent.com/italoBer/trello-automacoes/main/tampermonkey/trello-sync.js
 // ==/UserScript==
 
 (function () {
