@@ -25,8 +25,8 @@ Detecta automaticamente se você está no Mercado Livre ou na Shopee e cria card
 - Auto-update via GitHub
 
 **Ativa em:**
-- `https://www.mercadolivre.com.br/vendas/*`
-- `https://seller.shopee.com.br/*`
+- `https://www.mercadolivre.com.br/vendas/omni/*`
+- `https://seller.shopee.com.br/portal/sale/*`
 
 ---
 

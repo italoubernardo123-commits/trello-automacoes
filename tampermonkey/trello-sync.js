@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Vendas → Trello (ML + Shopee)
 // @namespace    vendas-trello
-// @version      1.6
-// @match        https://www.mercadolivre.com.br/*
-// @match        https://www.mercadolibre.com.br/*
-// @match        https://seller.shopee.com.br/*
+// @version      1.7
+// @match        https://www.mercadolivre.com.br/vendas/omni/*
+// @match        https://www.mercadolibre.com.br/vendas/omni/*
+// @match        https://seller.shopee.com.br/portal/sale/*
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @updateURL    https://raw.githubusercontent.com/italoBer/trello-automacoes/main/tampermonkey/trello-sync.js
@@ -13,6 +13,9 @@
 
 (function () {
   'use strict';
+
+  // Guard: não rodar em páginas de mensagens (o painel de chat tem script próprio)
+  if (location.pathname.includes('/mensagens')) return;
 
   // ─── Credenciais (salvas localmente no Tampermonkey) ─────────
   function getCreds() {
@@ -63,8 +66,8 @@
     const campos = [
       { key: 'API_KEY',         label: 'Trello API Key',             placeholder: '32 caracteres',  hint: 'Acesse trello.com/power-ups/admin' },
       { key: 'API_TOKEN',       label: 'Trello Token',               placeholder: '64 caracteres',  hint: 'Gerado na mesma página da API Key' },
-      { key: 'BOARD_ID_ML',     label: 'Board ID — Mercado Livre',   placeholder: 'ex: oCfs01Yk',   hint: 'URL do quadro: trello.com/b/oCfs01Yk/nome' },
-      { key: 'BOARD_ID_SHOPEE', label: 'Board ID — Shopee',          placeholder: 'ex: fvvPPcP3',   hint: 'URL do quadro: trello.com/b/fvvPPcP3/nome' },
+      { key: 'BOARD_ID_ML',     label: 'Board ID — Mercado Livre',   placeholder: 'ex: aBcD1234',   hint: 'URL do quadro: trello.com/b/SEU_ID/nome' },
+      { key: 'BOARD_ID_SHOPEE', label: 'Board ID — Shopee',          placeholder: 'ex: eFgH5678',   hint: 'URL do quadro: trello.com/b/SEU_ID/nome' },
       { key: 'LABEL_RECLAM',    label: 'ID Etiqueta Reclamação (ML)', placeholder: 'ID hexadecimal', hint: 'Opcional. Cole o ID, não o nome' },
       { key: 'LABEL_MAIS',      label: 'ID Etiqueta Mais Compras',   placeholder: 'ID hexadecimal', hint: 'Opcional. Cole o ID, não o nome' },
     ];

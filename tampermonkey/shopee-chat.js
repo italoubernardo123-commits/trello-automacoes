@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Shopee — Painel de Atendimento
 // @namespace    empresa-shopee-chat
-// @version      1.5
+// @version      1.6
 // @description  Painel de ações no chat da Shopee
 // @match        https://seller.shopee.com.br/new-webchat/*
 // @grant        GM_xmlhttpRequest
@@ -16,7 +16,36 @@
     // ⚙️ CONFIGURAÇÃO
     // ============================================================
 
-    const BOARD_ID = "fvvPPcP3";
+    // ID do quadro do Trello — resolvido em tempo de execução, NÃO fica no código
+    // (o repositório é público). Ordem: localStorage → auto-detecção pelo nome do
+    // quadro na conta da pessoa → prompt (uma vez; fica salvo na máquina).
+    let BOARD_ID = null;
+    const CHAVE_BOARD = "sp_chat_board_id";
+    let _boardCancelado = false; // evita pedir em loop se a pessoa cancelar o prompt
+
+    async function resolverBoardId() {
+        if (BOARD_ID) return BOARD_ID;
+        const salvo = localStorage.getItem(CHAVE_BOARD);
+        if (salvo) { BOARD_ID = salvo; return BOARD_ID; }
+        // Auto-detecção: quadro da conta cujo nome contém "shopee"
+        try {
+            const boards = await api("GET", "/members/me/boards?fields=name,shortLink");
+            const candidatos = (boards || []).filter(b =>
+                (b.name || "").toLowerCase().includes("shopee")
+            );
+            if (candidatos.length === 1) {
+                BOARD_ID = candidatos[0].shortLink;
+                localStorage.setItem(CHAVE_BOARD, BOARD_ID);
+                return BOARD_ID;
+            }
+        } catch { /* cai no prompt */ }
+        if (_boardCancelado) return null;
+        const id = (prompt("Quadro da Shopee não detectado automaticamente.\nCole o ID do quadro Trello (está na URL: trello.com/b/SEU_ID/nome):") || "").trim();
+        if (!id) { _boardCancelado = true; return null; }
+        BOARD_ID = id;
+        localStorage.setItem(CHAVE_BOARD, id);
+        return BOARD_ID;
+    }
 
     // Listas de destino
     const LISTA_EXPORTANDO      = "EXPORTANDO";
@@ -282,6 +311,7 @@
         document.getElementById(PAINEL_ID)?.remove();
 
         if (!garantirCredenciais()) return;
+        if (!(await resolverBoardId())) return;
 
         const painel = document.createElement("div");
         painel.id = PAINEL_ID;

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ML — Painel de Atendimento
 // @namespace    empresa-ml-chat
-// @version      3.5
+// @version      3.6
 // @description  Painel de ações no chat do cliente ML
 // @match        https://www.mercadolivre.com.br/vendas/*/mensagens*
 // @grant        GM_xmlhttpRequest
@@ -16,7 +16,38 @@
     // ⚙️ CONFIGURAÇÃO — edite aqui sem precisar mexer no resto
     // ============================================================
 
-    const BOARD_ID = "oCfs01Yk";
+    // ID do quadro do Trello — resolvido em tempo de execução, NÃO fica no código
+    // (o repositório é público). Ordem: localStorage → auto-detecção pelo nome do
+    // quadro na conta da pessoa → prompt (uma vez; fica salvo na máquina).
+    let BOARD_ID = null;
+    const CHAVE_BOARD = "ml_chat_board_id";
+    let _boardCancelado = false; // evita pedir em loop se a pessoa cancelar o prompt
+
+    async function resolverBoardId() {
+        if (BOARD_ID) return BOARD_ID;
+        const salvo = localStorage.getItem(CHAVE_BOARD);
+        if (salvo) { BOARD_ID = salvo; return BOARD_ID; }
+        // Auto-detecção: quadro da conta cujo nome indica Mercado Livre
+        try {
+            const boards = await api("GET", "/members/me/boards?fields=name,shortLink");
+            const candidatos = (boards || []).filter(b => {
+                const n = (b.name || "").toLowerCase();
+                if (n.includes("shopee")) return false;
+                return n.includes("mercado") || /\bml\b/.test(n);
+            });
+            if (candidatos.length === 1) {
+                BOARD_ID = candidatos[0].shortLink;
+                localStorage.setItem(CHAVE_BOARD, BOARD_ID);
+                return BOARD_ID;
+            }
+        } catch { /* cai no prompt */ }
+        if (_boardCancelado) return null;
+        const id = (prompt("Quadro do ML não detectado automaticamente.\nCole o ID do quadro Trello (está na URL: trello.com/b/SEU_ID/nome):") || "").trim();
+        if (!id) { _boardCancelado = true; return null; }
+        BOARD_ID = id;
+        localStorage.setItem(CHAVE_BOARD, id);
+        return BOARD_ID;
+    }
 
     // Listas de destino fixas
     const LISTA_EXPORTANDO      = "EXPORTANDO!";
@@ -226,6 +257,7 @@
         if (!garantirCredenciais()) return;
         const vendaId = getVendaId();
         if (!vendaId) return;
+        if (!(await resolverBoardId())) return;
 
         const painel = document.createElement("div");
         painel.id = "ml-painel-atendimento";
