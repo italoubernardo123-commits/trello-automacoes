@@ -29,7 +29,8 @@
         if (salvo) { BOARD_ID = salvo; return BOARD_ID; }
         // Auto-detecção: quadro da conta cujo nome indica Mercado Livre
         try {
-            const boards = await api("GET", "/members/me/boards?fields=name,shortLink");
+            // filter=open: ignora quadros fechados/arquivados na detecção
+            const boards = await api("GET", "/members/me/boards?filter=open&fields=name,shortLink");
             const candidatos = (boards || []).filter(b => {
                 const n = (b.name || "").toLowerCase();
                 if (n.includes("shopee")) return false;
