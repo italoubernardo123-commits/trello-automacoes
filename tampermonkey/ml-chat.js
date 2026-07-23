@@ -164,6 +164,8 @@
                 url: `https://api.trello.com/1${path}${sep}key=${getKey()}&token=${getToken()}`,
                 headers: { "Content-Type": "application/json" },
                 data: body ? JSON.stringify(body) : undefined,
+                timeout: 30000,
+                ontimeout: () => reject(new Error("timeout")),
                 onload: r => { try { resolve(JSON.parse(r.responseText)); } catch(e) { reject(e); } },
                 onerror: reject
             });
@@ -175,13 +177,10 @@
         return m ? m[1] : null;
     }
 
-    async function buscarCard(vendaId) {
-        const cards = await api("GET", `/boards/${BOARD_ID}/cards?fields=name,desc,idList,url,idLabels`);
-        return cards.find(c => (c.desc || "").includes(vendaId)) || null;
-    }
-
-    async function buscarTodosCards() {
-        return await api("GET", `/boards/${BOARD_ID}/cards?fields=name,idList,idLabels`);
+    // Uma única busca do quadro (com desc) — serve tanto para achar o card da venda
+    // quanto para detectar "mais compras", sem baixar o quadro inteiro duas vezes.
+    async function buscarCards() {
+        return await api("GET", `/boards/${BOARD_ID}/cards?fields=name,desc,idList,url,idLabels`);
     }
 
     async function buscarListas() {
@@ -310,9 +309,10 @@
 
         let card, listas, etiquetas, todosCards;
         try {
-            [card, listas, etiquetas, todosCards] = await Promise.all([
-                buscarCard(vendaId), buscarListas(), buscarEtiquetas(), buscarTodosCards()
+            [todosCards, listas, etiquetas] = await Promise.all([
+                buscarCards(), buscarListas(), buscarEtiquetas()
             ]);
+            card = todosCards.find(c => (c.desc || "").includes(vendaId)) || null;
         } catch {
             document.getElementById("ml-status").innerText = "❌ Erro ao buscar dados.";
             return;

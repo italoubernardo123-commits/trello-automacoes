@@ -149,6 +149,8 @@
                 url: `https://api.trello.com/1${path}${sep}key=${getKey()}&token=${getToken()}`,
                 headers: { "Content-Type": "application/json" },
                 data: body ? JSON.stringify(body) : undefined,
+                timeout: 30000,
+                ontimeout: () => reject(new Error("timeout")),
                 onload: r => { try { resolve(JSON.parse(r.responseText)); } catch(e) { reject(e); } },
                 onerror: reject
             });
